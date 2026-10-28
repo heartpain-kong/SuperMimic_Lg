@@ -45,6 +45,7 @@ def test_online_supermimic_command_uses_bptt_runner(tmp_path):
                                     backend="mujoco", device="cpu"), tmp_path, tmp_path / "run")
     assert command[3] == "supermimic_lg.scripts.train_supermimic"
     assert "--output-dir" in command and "--policy-updates" in command
+    assert command[command.index("--history") + 1] == "3"
     assert not any("ppo" in word.lower() for word in command)
 
 

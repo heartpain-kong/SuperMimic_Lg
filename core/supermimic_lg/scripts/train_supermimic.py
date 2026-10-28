@@ -52,7 +52,7 @@ class Trainer:
         self.critic = Critic(self.shape, 16, hidden=(args.network_size,) * 2).to(args.device)
         self.wm_trainer = WorldModelTrainer(self.wm)
         self.ac = ImaginedActorCritic(self.wm, self.policy, self.critic, ActorCriticConfig(horizon=args.horizon))
-        self.replay = OnlineReplay(args.replay_capacity, args.num_envs, self.shape.history * self.shape.obs_dim, args.device)
+        self.replay = OnlineReplay(args.replay_capacity, args.num_envs, (self.shape.history, self.shape.obs_dim), args.device)
         self.iteration = self.wm_updates = self.policy_updates = 0
         self.metadata = {"motion_sha256": file_hash(args.motion_file), "xml_sha256": file_hash(self.xml),
                          "policy_shape": asdict(self.shape), "network_size": args.network_size,
@@ -67,7 +67,7 @@ class Trainer:
         self.sim = MjlabSimulator(args.mjlab_root, args.num_envs, args.device) if args.backend == "mjlab" else MujocoSimulator(self.xml, args.num_envs, args.device)
         self.frames = torch.zeros(args.num_envs, dtype=torch.long, device=args.device)
         self.previous_action = torch.zeros(args.num_envs, 12, device=args.device)
-        self.history = torch.zeros(args.num_envs, args.history * self.shape.obs_dim, device=args.device)
+        self.history = torch.zeros(args.num_envs, args.history, self.shape.obs_dim, device=args.device)
         self.episode_steps = torch.zeros_like(self.frames)
         self.episode_return = torch.zeros(args.num_envs, device=args.device)
         self.reset(torch.arange(args.num_envs, device=args.device))
@@ -81,7 +81,8 @@ class Trainer:
         self.frames[ids] = frames
         self.previous_action[ids] = 0.
         state = self.sim.state()[ids]
-        self.history[ids] = observation(state, self.previous_action[ids], self.sim.context[ids]).repeat(1, self.args.history)
+        first_frame = observation(state, self.previous_action[ids], self.sim.context[ids])
+        self.history[ids] = first_frame[:, None].expand(-1, self.args.history, -1)
         self.episode_steps[ids] = 0
         self.episode_return[ids] = 0.
 
@@ -137,7 +138,10 @@ class Trainer:
     def load(self, path):
         checkpoint = torch.load(path, map_location=self.args.device, weights_only=True)
         if checkpoint.get("algorithm") != "supermimic_bptt" or checkpoint.get("metadata") != self.metadata:
-            raise ValueError("checkpoint algorithm, robot XML, motion, or policy architecture does not match this run")
+            saved_history = checkpoint.get("metadata", {}).get("policy_shape", {}).get("history", "unknown")
+            raise ValueError("checkpoint algorithm, robot XML, motion, or policy architecture does not match this run; "
+                             f"checkpoint history={saved_history}, current history={self.args.history}. "
+                             "Resume with the checkpoint's history length, or start a new run for a different input shape.")
         for module, key in ((self.wm, "wm"), (self.policy, "policy"), (self.critic, "critic")):
             module.load_state_dict(checkpoint[key])
         for optimizer, key in ((self.wm_trainer.optimizer, "wm_opt"), (self.ac.policy_opt, "policy_opt"), (self.ac.critic_opt, "critic_opt")):
@@ -150,6 +154,7 @@ class Trainer:
         first = self.iteration
         print(json.dumps({"algorithm": "SuperMimic BPTT", "backend": self.args.backend, "device": self.args.device,
                           "robot": "lgdog1", "state_dim": 37, "action_dim": 12, "num_envs": self.args.num_envs,
+                          "observation_history_shape": [self.args.num_envs, self.args.history, self.shape.obs_dim],
                           "resume_iteration": first, "context_mode": self.metadata["context_mode"]}), flush=True)
         try:
             for iteration in range(first + 1, self.args.iterations + 1):
@@ -196,7 +201,7 @@ def parser():
     p.add_argument("--device", default="cuda:0")
     for name, default in (("num-envs", 64), ("iterations", 10000), ("collect-steps", 16), ("wm-updates", 10),
                           ("policy-updates", 2), ("warmup-iterations", 5), ("batch-size", 128), ("wm-horizon", 4),
-                          ("horizon", 8), ("history", 10), ("goal-horizon", 10), ("replay-capacity", 256),
+                          ("horizon", 8), ("history", 3), ("goal-horizon", 10), ("replay-capacity", 256),
                           ("network-size", 128), ("episode-steps", 500), ("save-interval", 10), ("torch-threads", 4)):
         p.add_argument("--" + name, type=int, default=default)
     p.add_argument("--seed", type=int, default=42)

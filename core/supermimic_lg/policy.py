@@ -12,7 +12,7 @@ from .world_model import mlp
 class PolicyShape:
     n_joints: int
     n_bodies: int
-    history: int = 10
+    history: int = 3  # Current frame plus two past frames.
     goal_horizon: int = 10
     latent_dim: int = 32
 
@@ -50,6 +50,10 @@ class Policy(nn.Module):
         self.decoder = mlp(shape.latent_dim + shape.history * shape.obs_dim, decoder_hidden, shape.n_joints)
 
     def forward(self, obs_history: torch.Tensor, goal: torch.Tensor) -> torch.Tensor:
+        if obs_history.ndim == goal.ndim + 1:
+            if obs_history.shape[-2:] != (self.shape.history, self.shape.obs_dim):
+                raise ValueError("invalid frame-major observation history")
+            obs_history = obs_history.flatten(-2)
         if obs_history.shape[-1] != self.shape.history * self.shape.obs_dim:
             raise ValueError("invalid flattened observation history")
         if goal.shape[-1] != self.shape.goal_dim:

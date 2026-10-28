@@ -13,7 +13,8 @@ mujoco = pytest.importorskip("mujoco")
 from supermimic_lg.config import WorldModelConfig, lgdog1_spec
 from supermimic_lg.data.motion import MotionClip, save_motion_npz
 from supermimic_lg.kinematics import LgDogKinematics
-from supermimic_lg.online_data import MotionSequence, OnlineReplay
+from supermimic_lg.online_data import MotionSequence, OnlineReplay, advance_history, observation
+from supermimic_lg.policy import Policy, PolicyShape
 from supermimic_lg.scripts.train_supermimic import Trainer, parser
 from supermimic_lg.simulator import joint_addresses, load_lgdog_model
 from supermimic_lg.world_model import WorldModel
@@ -44,6 +45,33 @@ def standing_motion(xml, path):
     save_motion_npz(path, MotionClip(states[:, 7:19].numpy(), states[:, 25:37].numpy(),
                                    p.numpy(), q.numpy(), v.numpy(), w.numpy()))
     return path
+
+
+def test_frame_history_preserves_time_order_and_policy_gradients():
+    shape = PolicyShape(12, 13)
+    state = torch.zeros(2, 37)
+    state[:, 3] = 1.
+    context, action = torch.zeros(2, 16), torch.zeros(2, 12)
+    state[:, 7:19] = .1
+    first = observation(state, action, context)
+    history = first[:, None].repeat(1, shape.history, 1)
+    state[:, 7:19] = .2
+    second = observation(state, action, context)
+    history = advance_history(state, action, context, history)
+    state[:, 7:19] = .3
+    third = observation(state, action, context)
+    history = advance_history(state, action, context, history)
+    assert history.shape == (2, 3, 42)
+    torch.testing.assert_close(history, torch.stack((first, second, third), dim=1))
+    policy = Policy(shape, encoder_hidden=(16,), decoder_hidden=(16,))
+    goal = torch.zeros(2, shape.goal_dim)
+    history.requires_grad_(True)
+    output = policy(history, goal)
+    assert output.shape == (2, 12)
+    torch.testing.assert_close(output, policy(history.flatten(1), goal))
+    output.square().sum().backward()
+    assert torch.isfinite(history.grad).all()
+    assert (history.grad.abs().sum(dim=(0, 2)) > 0).all()
 
 
 def test_fk_matches_mujoco_link_poses_velocities_and_gradients(robot_xml):
@@ -97,14 +125,24 @@ def test_real_physics_online_loop_and_resume(robot_xml, tmp_path, seed):
     args = parser().parse_args(["--robot-xml", str(robot_xml), "--motion-file", str(motion),
         "--backend", "mujoco", "--device", "cpu", "--num-envs", "2", "--iterations", "2",
         "--collect-steps", "4", "--wm-updates", "2", "--policy-updates", "1", "--warmup-iterations", "1",
-        "--batch-size", "4", "--wm-horizon", "2", "--horizon", "2", "--history", "2", "--goal-horizon", "2",
+        "--batch-size", "4", "--wm-horizon", "2", "--horizon", "2", "--goal-horizon", "2",
         "--replay-capacity", "8", "--network-size", "32", "--torch-threads", "2", "--seed", str(seed),
         "--output-dir", str(tmp_path / "run")])
     trainer = Trainer(args)
+    assert trainer.shape.history == 3 and trainer.history.shape == (2, 3, 42)
+    assert trainer.replay.histories.shape[-2:] == (3, 42)
+    with torch.no_grad():
+        actions = trainer.policy(trainer.history, trainer.motion.goal(trainer.frames))
+        assert actions.shape == (2, 12)
     before = {k: v.clone() for k, v in trainer.policy.state_dict().items()}
     trainer.run()
+    other_history = trainer.history[0].clone()
+    trainer.reset(torch.tensor([1]))
+    torch.testing.assert_close(trainer.history[0], other_history)
+    torch.testing.assert_close(trainer.history[1], trainer.history[1, -1:].expand(3, -1))
     checkpoint = torch.load(tmp_path / "run/checkpoint.pt", weights_only=True)
     assert checkpoint["algorithm"] == "supermimic_bptt"
+    assert checkpoint["metadata"]["policy_shape"]["history"] == 3
     assert checkpoint["policy_updates"] == 2 and checkpoint["wm_updates"] == 4
     assert any(not torch.equal(before[k], v) for k, v in checkpoint["policy"].items())
     metrics = [json.loads(x) for x in (tmp_path / "run/metrics.jsonl").read_text().splitlines()]
@@ -118,4 +156,7 @@ def test_real_physics_online_loop_and_resume(robot_xml, tmp_path, seed):
     resumed.run()
     assert resumed.iteration == 3 and resumed.policy_updates == 3
     with pytest.raises(ValueError, match="must exceed checkpoint iteration"):
+        Trainer(args)
+    args.iterations, args.history = 4, 10
+    with pytest.raises(ValueError, match="checkpoint history=3, current history=10"):
         Trainer(args)

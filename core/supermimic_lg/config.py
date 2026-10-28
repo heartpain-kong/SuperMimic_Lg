@@ -56,7 +56,7 @@ class WorldModelConfig:
 
 @dataclass
 class PolicyConfig:
-    history: int = 10
+    history: int = 3  # Current frame plus two past frames.
     goal_horizon: int = 10
     encoder_hidden: tuple[int, ...] = (512, 256)
     decoder_hidden: tuple[int, ...] = (512, 256)

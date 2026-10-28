@@ -57,6 +57,7 @@ def build_command(data, root, run_dir):
                         "--output-dir", str(run_dir)]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
+                    ("history", "history", 3, 128),
                     ("collect_steps", "collect-steps", 16, 65536), ("wm_updates", "wm-updates", 10, 10000),
                     ("policy_updates", "policy-updates", 2, 10000), ("warmup_iterations", "warmup-iterations", 5, 1000000)):
                 command += ["--" + flag, str(integer(data, field, default, 1, high))]

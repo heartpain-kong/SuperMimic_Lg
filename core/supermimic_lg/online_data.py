@@ -20,6 +20,10 @@ def observation(state, previous_action, context):
 
 def advance_history(state, action, context, history):
     obs = observation(state, action, context)
+    if history.ndim == obs.ndim + 1:
+        if history.shape[-1] != obs.shape[-1]:
+            raise ValueError("history frame width does not match observation")
+        return torch.cat((history[..., 1:, :], obs.unsqueeze(-2)), dim=-2)
     return torch.cat((history[..., obs.shape[-1]:], obs), dim=-1)
 
 
@@ -71,7 +75,8 @@ class OnlineReplay:
             return torch.zeros(capacity, num_envs, *dims, device=device)
         self.states, self.next_states = zeros(37), zeros(37)
         self.actions, self.previous_actions = zeros(12), zeros(12)
-        self.contexts, self.histories = zeros(16), zeros(history_dim)
+        history_shape = (history_dim,) if isinstance(history_dim, int) else tuple(history_dim)
+        self.contexts, self.histories = zeros(16), zeros(*history_shape)
         self.terminal, self.reset = zeros(), zeros()
         self.frames = torch.zeros(capacity, num_envs, dtype=torch.long, device=device)
 
