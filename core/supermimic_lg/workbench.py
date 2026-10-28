@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -103,7 +104,7 @@ def command_display(command):
 
 
 class TrainingManager:
-    def __init__(self, root, stop_timeout=10):
+    def __init__(self, root, stop_timeout=10, command_builder=None):
         self.root = Path(root).resolve()
         self.run_root = self.root / "logs" / "workbench"
         self.stop_timeout = stop_timeout
@@ -113,6 +114,7 @@ class TrainingManager:
         self.output = None
         self.closed = False
         self.cleanup_running = False
+        self.command_builder = command_builder
 
     def _save(self):
         path = Path(self.job["run_dir"]) / "job.json"
@@ -141,7 +143,7 @@ class TrainingManager:
             if self.proc is not None:
                 raise ValueError("已有训练在运行，请先停止当前训练")
             run_dir = self.run_root / (time.strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:8])
-            command = build_command(data, self.root, run_dir)
+            command = (self.command_builder or build_command)(data, self.root, run_dir)
             run_dir.mkdir(parents=True)
             log_path = run_dir / "train.log"
             self.output = log_path.open("wb")
@@ -252,7 +254,126 @@ class TrainingManager:
             time.sleep(0.1)
 
 
-def make_handler(manager):
+def viewer_config(data, root):
+    checkpoint = input_path(data, "checkpoint", root)
+    config = {}
+    path = checkpoint.parent / "config.json"
+    if path.is_file() and path.stat().st_size < 1048576:
+        try:
+            config = json.loads(path.read_text(encoding="utf-8")).get("args", {})
+        except (OSError, ValueError, AttributeError):
+            pass
+    if not isinstance(config, dict):
+        config = {}
+    merged = {key: data.get(key) or config.get(key) for key in ("motion_file", "mjlab_root", "robot_xml")}
+    motion = input_path(merged, "motion_file", root)
+    # Resolve the XML without importing torch/mjlab in the HTTP server.
+    if merged.get("robot_xml"):
+        xml = input_path(merged, "robot_xml", root)
+    else:
+        project = input_path(merged, "mjlab_root", root, directory=True)
+        candidates = (project, project / "unitree_rl_mjlab_lgdog",
+                      project / "unitree_rl_mjlab_lgdog" / "unitree_rl_mjlab_lgdog")
+        xml = next((p / "src/assets/robots/lgdog1/xmls/lgdog1.xml" for p in candidates
+                    if (p / "src/assets/robots/lgdog1/xmls/lgdog1.xml").is_file()), None)
+        if xml is None:
+            raise ValueError("找不到 LgDog XML，请填写正确的仓库路径或 robot_xml")
+    return checkpoint, motion, xml
+
+
+def build_viewer_command(data, root, run_dir):
+    checkpoint, motion, xml = viewer_config(data, root)
+    command = [sys.executable, "-u", "-m", "supermimic_lg.viewer", "--checkpoint", str(checkpoint),
+               "--motion-file", str(motion), "--robot-xml", str(xml), "--output-dir", str(run_dir),
+               "--start-frame", str(integer(data, "start_frame", 0, 0, 100000000))]
+    if data.get("collision_only") is True:
+        command.append("--collision-only")
+    return command
+
+
+class ViewerManager(TrainingManager):
+    def __init__(self, root):
+        super().__init__(root, command_builder=build_viewer_command)
+        self.run_root = self.root / "logs" / "viewer"
+        self.controls = dict(paused=False, speed=1., view="side", reset=0)
+
+    def start(self, data):
+        with self.lock:
+            job = super().start(dict(data, mode="viewer"))
+            self.controls = dict(paused=False, speed=1., view="side", reset=0)
+            return job
+
+    def control(self, data):
+        with self.lock:
+            self._refresh()
+            if self.proc is None or self.job["status"] != "running":
+                raise ValueError("请先开始策略观看")
+            controls = dict(self.controls)
+            if "paused" in data:
+                if type(data["paused"]) is not bool:
+                    raise ValueError("paused 必须是布尔值")
+                controls["paused"] = data["paused"]
+            if "speed" in data:
+                speed = float(data["speed"])
+                if not math.isfinite(speed) or not .1 <= speed <= 4.:
+                    raise ValueError("播放速度必须为 0.1–4 倍")
+                controls["speed"] = speed
+            if "view" in data:
+                if data["view"] not in ("side", "front", "top"):
+                    raise ValueError("无效视角")
+                controls["view"] = data["view"]
+            if data.get("reset") is True:
+                controls["reset"] += 1
+            path = Path(self.job["run_dir"]) / "control.json"
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(controls), encoding="utf-8")
+            tmp.replace(path)
+            self.controls = controls
+            return controls
+
+    def status(self):
+        with self.lock:
+            self._refresh()
+            result = {"current": dict(self.job) if self.job else None}
+            result["playback"] = None
+            result["error_log"] = ""
+            if self.job:
+                path = Path(self.job["run_dir"]) / "state.json"
+                try:
+                    result["playback"] = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    pass
+                if self.job["status"] == "failed":
+                    result["error_log"] = self.log(self.job["id"])[-6000:]
+            return result
+
+    def frame(self, job_id):
+        with self.lock:
+            if not self.job or self.job["id"] != job_id:
+                raise ValueError("观看编号不匹配")
+            path = Path(self.job["run_dir"]) / "frame.png"
+            if not path.is_file():
+                raise ValueError("画面尚未生成")
+            return path.read_bytes()
+
+    def checkpoints(self):
+        candidates = list((self.root / "logs").rglob("checkpoint.pt"))
+        result = []
+        for path in sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)[:50]:
+            item = {"path": str(path), "name": str(path.relative_to(self.root)), "modified_at": path.stat().st_mtime}
+            try:
+                config = json.loads((path.parent / "config.json").read_text(encoding="utf-8")).get("args", {})
+                if isinstance(config, dict):
+                    for key in ("motion_file", "robot_xml", "mjlab_root"):
+                        item[key] = config.get(key) or ""
+            except (OSError, ValueError, AttributeError):
+                pass
+            result.append(item)
+        return result
+
+
+def make_handler(manager, viewer=None):
+    viewer = viewer or ViewerManager(manager.root)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
             pass
@@ -266,7 +387,10 @@ def make_handler(manager):
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'")
             self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
         def allowed(self):
             host = self.headers.get("Host", "")
@@ -293,6 +417,13 @@ def make_handler(manager):
                 elif url.path == "/api/log":
                     job_id = parse_qs(url.query).get("id", [""])[0]
                     self.reply(200, {"log": manager.log(job_id)})
+                elif url.path == "/api/viewer/checkpoints":
+                    self.reply(200, {"checkpoints": viewer.checkpoints()})
+                elif url.path == "/api/viewer/status":
+                    self.reply(200, viewer.status())
+                elif url.path == "/api/viewer/frame":
+                    job_id = parse_qs(url.query).get("id", [""])[0]
+                    self.reply(200, viewer.frame(job_id), "image/png")
                 else:
                     self.reply(404, {"error": "找不到接口"})
             except (ValueError, OSError) as exc:
@@ -319,6 +450,13 @@ def make_handler(manager):
                 elif self.path == "/api/preview":
                     command = build_command(data, manager.root, manager.run_root / "PREVIEW")
                     self.reply(200, {"command": command, "command_display": command_display(command)})
+                elif self.path == "/api/viewer/start":
+                    self.reply(200, viewer.start(data))
+                elif self.path == "/api/viewer/control":
+                    self.reply(200, viewer.control(data))
+                elif self.path == "/api/viewer/stop":
+                    viewer.stop()
+                    self.reply(200, viewer.status())
                 else:
                     self.reply(404, {"error": "找不到接口"})
             except (ValueError, OSError, TypeError) as exc:
@@ -333,7 +471,8 @@ def main():
     args = parser.parse_args()
     args.root.mkdir(parents=True, exist_ok=True)
     manager = TrainingManager(args.root)
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(manager))
+    viewer = ViewerManager(args.root)
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(manager, viewer))
     server.daemon_threads = True
     def shutdown(*_):
         threading.Thread(target=server.shutdown, daemon=True).start()
@@ -344,6 +483,7 @@ def main():
     try:
         server.serve_forever(poll_interval=0.2)
     finally:
+        viewer.close()
         manager.close()
         server.server_close()
 

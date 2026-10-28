@@ -2,6 +2,8 @@
 
 工作台提供启动训练、停止训练、参数配置、命令预览、实时日志和历史记录。同一工作台同时只启动一个训练任务。它使用启动工作台的 Python 环境，因此应先按 [Ubuntu 22.04 部署说明](UBUNTU_22_04.md) 安装 LgDog/mjlab 和本包。
 
+也可直接在页面的 **策略观看 · SuperMimic** 面板加载检查点并观看真实仿真画面，操作见下文。
+
 ## Ubuntu 启动
 
 ```bash
@@ -72,3 +74,29 @@ SuperMimic 的策略优化通过可微世界模型中的短视野 rollout 做 BP
 本仓库的 LgDog 在线入口已接通采集→世界模型→BPTT 策略更新，直接调用独立 `train_supermimic` runner。PPO 指另一个 LgDog1 tracking 基线入口。在线训练保存的 checkpoint 包含策略；单独拟合世界模型时生成的 `world_model.pt` 仅包含动力学模型。
 
 论文：[SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model](https://arxiv.org/abs/2610.28480)。
+
+## 在工作台观看策略
+
+1. 刷新工作台，在右侧“策略观看 · SuperMimic”选择已保存的 `checkpoint.pt`，或手动填写服务器上的路径。
+2. 工作台从检查点同目录的 `config.json` 自动读取 motion 和机器人路径。移动过文件时，展开“参考动作与机器人路径”重新指定；动作和 XML 的哈希必须匹配训练记录。
+3. 点击“开始观看”。策略的历史长度、目标帧数和网络大小从检查点恢复，不使用训练表单当前填写的结构。
+4. 使用“暂停/继续”“回到起始帧”“结束观看”，并可调整 0.25×/0.5×/1×/2× 速度，以及侧视/正视/俯视。
+
+观看使用独立 CPU MuJoCo 环境和确定性策略动作，不添加训练探索噪声。画面由 MuJoCo 离屏渲染，再经工作台同一端口传给浏览器；本机与 SSH 隧道均可使用，无需额外开放端口。播放到片段结尾或触发高度/倾斜失败后会重置到起始帧。暂停会停止物理推进；结束观看不会停止训练。关闭浏览器不会结束服务器上的观看进程，需点击“结束观看”或正常退出工作台。
+
+目前支持在线 SuperMimic 的完整检查点；PPO 的 `model_*.pt` 和单独动力学模型 `world_model.pt` 不适用于此观看入口。观看加载的是开始时的策略快照，训练继续产生新检查点后，结束并重新开始观看才能载入新权重。日志和最近画面保存在 `logs/viewer/<观看编号>/`，不提交到 Git；不是视频录制。
+
+默认显示 XML 中的 STL 视觉网格，物理惯性、关节和 PD 参数与 CPU 训练后端一致。缺少 STL 时，可勾选“仅显示物理碰撞模型”。站立测试策略会显示站立/调整姿态，不代表已学会行走。
+
+### Ubuntu 离屏渲染
+
+使用部署文档中的 Python/MuJoCo 环境。Linux 默认在观看子进程选择 `MUJOCO_GL=egl`，无需桌面或 X11。通常需要 `libegl1 libgl1 libglib2.0-0` 和可用 EGL 驱动；这些系统库已包含在 LgDog 安装脚本中。
+
+如果服务器只有 CPU 或 EGL 驱动不可用，可安装 `libosmesa6`，然后在启动工作台前选择软件渲染：
+
+```bash
+sudo apt-get install -y libosmesa6
+MUJOCO_GL=osmesa python -m supermimic_lg.workbench --root "$PWD" --port 8089
+```
+
+渲染初始化失败时页面显示“观看失败”和错误日志；没有图像时不会用静态示意图替代。实时网格渲染、播放/暂停/重置和进程隔离已在本机 Windows / MuJoCo 3.5.0 上验证，Ubuntu EGL/OSMesa 仍待对应服务器验证。

@@ -12,6 +12,8 @@ python -m supermimic_lg.workbench --root /path/to/SuperMimic_Lg --port 8089
 
 本机浏览器打开 `http://127.0.0.1:8089`；Ubuntu 远程服务器使用 SSH 转发后访问。完整步骤见 [工作台说明](docs/WORKBENCH.md)。选择 **LgDog · SuperMimic 在线训练**，可直接进入真实仿真采集、世界模型拟合和 BPTT 策略更新循环；PPO tracking 保留为独立基线。
 
+工作台右侧提供 **策略观看 · SuperMimic**：选择检查点后显示真实 MuJoCo 网格画面，支持暂停/继续、重置、速度与视角切换，观看与训练分别控制。
+
 真正的 LgDog SuperMimic 训练命令、后端和检查点说明见 [LgDog 在线 SuperMimic](docs/SUPERMIMIC_LGDOG.md)。该循环已用实际 LgDog XML 在原生 MuJoCo CPU 上验证；mjlab CUDA 并行后端仍需 Ubuntu GPU 实机验证。
 
 现有 LgDog1 XML 的关节顺序是 `[FR, FL, RR, RL] × [hip, thigh, calf]`，动作缩放为 `0.25`，默认站姿为 `(hip=0, thigh=0, calf=0.2)`。这些值来自 `E:\mjlab\unitree_rl_mjlab_lgdog\unitree_rl_mjlab_lgdog\src\assets\robots\lgdog1\lgdog1_constants.py` 与 `lgdog1.xml`，集中在 [`core/supermimic_lg/config.py`](E:/SuperMimic_Lg/core/supermimic_lg/config.py)。

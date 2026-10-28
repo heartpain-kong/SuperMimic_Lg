@@ -22,7 +22,7 @@ def resolve_robot_xml(mjlab_root, robot_xml=None):
     return path
 
 
-def load_lgdog_model(path):
+def load_lgdog_model(path, visuals=False):
     """Keep the MJCF inertials/collisions; omit visual meshes for headless CPU use.
 
     PD values match the current LgDog actuator configuration: 20/1,20/1,40/2;
@@ -30,18 +30,33 @@ def load_lgdog_model(path):
     """
     import mujoco
     root = ET.parse(path).getroot()
-    for parent in root.iter():
-        for child in list(parent):
-            if child.tag == "mesh" or (child.tag == "geom" and child.get("type") == "mesh"):
-                parent.remove(child)
+    if visuals:
+        compiler = root.find("compiler")
+        if compiler is not None:
+            compiler.set("meshdir", str((Path(path).parent / compiler.get("meshdir", ".")).resolve()))
+    else:
+        for parent in root.iter():
+            for child in list(parent):
+                if child.tag == "mesh" or (child.tag == "geom" and child.get("type") == "mesh"):
+                    parent.remove(child)
     option = root.find("option")
     if option is None:
         option = ET.SubElement(root, "option")
     option.set("timestep", ".002")
     option.set("integrator", "implicitfast")
     world = root.find("worldbody")
-    ET.SubElement(world, "geom", name="supermimic_floor", type="plane", size="0 0 .1",
-                  contype="1", conaffinity="1", friction=".6 .3 .3")
+    floor = ET.SubElement(world, "geom", name="supermimic_floor", type="plane", size="0 0 .1",
+                          contype="1", conaffinity="1", friction=".6 .3 .3")
+    if visuals:
+        asset = root.find("asset")
+        if asset is None:
+            asset = ET.SubElement(root, "asset")
+        ET.SubElement(asset, "texture", name="sm_checker", type="2d", builtin="checker",
+                      rgb1=".22 .27 .34", rgb2=".35 .41 .49", width="256", height="256")
+        ET.SubElement(asset, "material", name="sm_floor_material", texture="sm_checker", texrepeat="4 4")
+        floor.set("material", "sm_floor_material")
+        ET.SubElement(world, "light", pos="0 0 3", dir="0 0 -1", directional="true",
+                      diffuse=".8 .8 .8", ambient=".3 .3 .3")
     actuators = root.find("actuator")
     if actuators is not None:
         root.remove(actuators)
@@ -70,9 +85,9 @@ def load_lgdog_model(path):
 
 
 class MujocoSimulator:
-    def __init__(self, xml, num_envs, device):
+    def __init__(self, xml, num_envs, device, visuals=False):
         import mujoco
-        self.model = load_lgdog_model(xml)
+        self.model = load_lgdog_model(xml, visuals=visuals)
         if self.model.nq != 19 or self.model.nv != 18:
             raise ValueError("expected a free root and 12 hinge joints")
         self.data = [mujoco.MjData(self.model) for _ in range(num_envs)]

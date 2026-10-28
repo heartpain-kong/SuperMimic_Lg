@@ -132,7 +132,14 @@ class Trainer:
                     "wm_opt": self.wm_trainer.optimizer.state_dict(), "policy_opt": self.ac.policy_opt.state_dict(),
                     "critic_opt": self.ac.critic_opt.state_dict(), "metadata": self.metadata,
                     "world_model_config": asdict(self.wm_cfg), "rng_state": torch.get_rng_state()}, tmp)
-        tmp.replace(path)
+        for attempt in range(30):
+            try:
+                tmp.replace(path)
+                break
+            except PermissionError:
+                if attempt == 29:
+                    raise
+                time.sleep(.1)  # A Windows viewer may briefly be reading the previous checkpoint.
         print(json.dumps({"checkpoint": str(path), "iteration": self.iteration, "policy_updates": self.policy_updates}), flush=True)
 
     def load(self, path):
