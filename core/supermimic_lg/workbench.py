@@ -41,13 +41,29 @@ def build_command(data, root, run_dir):
     """Build argv from a fixed set of training entry points, never shell text."""
     mode = data.get("mode", "smoke")
     command = [sys.executable, "-u", "-m"]
-    if mode == "tracking":
+    if mode in ("tracking", "supermimic"):
         mjlab = input_path(data, "mjlab_root", root, directory=True)
         candidates = (mjlab, mjlab / "unitree_rl_mjlab_lgdog",
                       mjlab / "unitree_rl_mjlab_lgdog" / "unitree_rl_mjlab_lgdog")
         if not any((p / "src").is_dir() and (p / "scripts/train.py").is_file() for p in candidates):
             raise ValueError("mjlab_root 必须包含 LgDog 的 src/ 和 scripts/train.py")
         motion = input_path(data, "motion_file", root)
+        if mode == "supermimic":
+            backend = data.get("backend", "mjlab")
+            if backend not in ("mjlab", "mujoco"):
+                raise ValueError("backend 必须是 mjlab 或 mujoco")
+            command += ["supermimic_lg.scripts.train_supermimic", "--mjlab-root", str(mjlab),
+                        "--motion-file", str(motion), "--backend", backend, "--device", device(data),
+                        "--output-dir", str(run_dir)]
+            for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
+                    ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
+                    ("collect_steps", "collect-steps", 16, 65536), ("wm_updates", "wm-updates", 10, 10000),
+                    ("policy_updates", "policy-updates", 2, 10000), ("warmup_iterations", "warmup-iterations", 5, 1000000)):
+                command += ["--" + flag, str(integer(data, field, default, 1, high))]
+            command += ["--seed", str(integer(data, "seed", 42, 0, 2147483647))]
+            if str(data.get("resume", "")).strip():
+                command += ["--resume", str(input_path(data, "resume", root))]
+            return command
         command += ["supermimic_lg.scripts.train_lgdog", "--mjlab-root", str(mjlab),
                     "--motion-file", str(motion),
                     f"--env.scene.num-envs={integer(data, 'envs', 64, 1, 65536)}",

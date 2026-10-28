@@ -55,6 +55,10 @@ def validate_motion_clip(clip: MotionClip, expected_joints: int | None = None,
         raise ValueError("body vector arrays must end in dimension 3")
     if clip.body_quat_w.shape[-1] != 4:
         raise ValueError("body_quat_w must use wxyz quaternions")
+    if any(a.shape[1] != clip.n_bodies for a in fields[2:]):
+        raise ValueError("all body arrays must have the same body count")
+    if not np.isfinite(clip.fps) or clip.fps <= 0:
+        raise ValueError("motion fps must be finite and positive")
     if expected_joints is not None and clip.n_joints != expected_joints:
         raise ValueError(f"motion has {clip.n_joints} joints, expected {expected_joints}")
     if expected_bodies is not None and clip.n_bodies != expected_bodies:

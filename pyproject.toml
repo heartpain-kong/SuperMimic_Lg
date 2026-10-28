@@ -18,6 +18,7 @@ supermimic-lg-smoke = "supermimic_lg.scripts.smoke:main"
 supermimic-lg-register-lgdog = "supermimic_lg.scripts.register_lgdog_tracking:main"
 supermimic-lg-train-wm = "supermimic_lg.scripts.train_world_model:main"
 supermimic-lg-workbench = "supermimic_lg.workbench:main"
+supermimic-lg-train = "supermimic_lg.scripts.train_supermimic:main"
 
 [tool.setuptools.packages.find]
 where = ["core"]

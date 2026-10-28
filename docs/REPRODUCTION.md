@@ -20,7 +20,7 @@ SuperMimic 的可迁移部分是：
 - `training.py` 提供真实 replay 窗口的 world-model 更新入口，`synthetic.py` 提供无仿真依赖的回归 smoke。
 - `actor_critic.py` 提供冻结世界模型上的短视野 actor-critic 更新；actor 保留奖励和软生存图，critic 使用同一批 imagined transitions 的 GAE 目标。
 
-需要在 Linux/NVIDIA 上完成的工作是：从 LgDog1 mjlab 环境记录实际执行动作、拟合完整世界模型、做短视野策略训练、再进行 MuJoCo/真实机器人 sim2real 验证。Windows 侧的 CPU smoke 只验证张量维度、损失、有限值和 BPTT 梯度通路。
+`scripts/train_supermimic.py` 现已接通 LgDog1 真实仿真采集、episode-aware replay、世界模型优化和 imagined actor-critic/BPTT 更新。原生 MuJoCo 后端已用实际 LgDog XML 完成多种子小规模物理训练与恢复检查；mjlab Scene/Simulation CUDA 后端仍需 Linux/NVIDIA 实机验证，实际步态效果与真机 sim2real 尚未验证。算法 CPU smoke 本身仍只证明张量维度和梯度通路。
 
 安全边界：
 

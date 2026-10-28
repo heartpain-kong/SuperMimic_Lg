@@ -30,6 +30,8 @@ class WorldModelBatch:
     actions: torch.Tensor
     contexts: torch.Tensor
     done: torch.Tensor
+    valid: torch.Tensor | None = None
+    reference_quat: torch.Tensor | None = None
 
 
 class WorldModel(nn.Module):
@@ -74,18 +76,19 @@ class WorldModel(nn.Module):
                            reference_quat: torch.Tensor | None = None) -> torch.Tensor:
         p = next_state[..., :3]
         q = quat_normalize(next_state[..., 3:7])
-        h_error = reference_root[..., 2] - p[..., 2]
+        h_error = (reference_root[..., 2] - p[..., 2]).abs()
         # Difference between reference and predicted up vectors in their local z.
         g = next_state.new_tensor([0.0, 0.0, -1.0]).expand(q.shape[:-1] + (3,))
         qinv = q * q.new_tensor([1.0, -1.0, -1.0, -1.0])
         from .state import quat_apply
-        tilt_pred = quat_apply(qinv, g)[..., 2]
+        gravity_pred = quat_apply(qinv, g)
         if reference_quat is None:
-            tilt = tilt_pred + 1.0
+            gravity_ref = g
         else:
             ref_q = quat_normalize(reference_quat)
             ref_qinv = ref_q * ref_q.new_tensor([1.0, -1.0, -1.0, -1.0])
-            tilt = tilt_pred - quat_apply(ref_qinv, g)[..., 2]
+            gravity_ref = quat_apply(ref_qinv, g)
+        tilt = (gravity_pred - gravity_ref).norm(dim=-1)
         feats = torch.stack((h_error / self.robot.height_threshold, tilt / self.robot.tilt_threshold), dim=-1)
         return self.termination(feats).squeeze(-1)
 
@@ -98,15 +101,19 @@ class WorldModel(nn.Module):
         term_acc = state.new_zeros(())
         k = batch.actions.shape[0]
         if reference_root is None:
-            reference_root = batch.states[1][..., :3]
+            reference_root = batch.states[1:][..., :3]
+        valid = batch.valid if batch.valid is not None else torch.ones_like(batch.done)
+        denominator = valid.sum().clamp_min(1.)
         for t in range(k):
             state = self.step(state, batch.actions[t], batch.contexts)
-            loss_state = loss_state + self.spec.normalized_sq_error(state, batch.states[t + 1]).mean()
-            logits = self.termination_logits(state, reference_root[t])
+            state = torch.where(valid[t, :, None].bool(), state, batch.states[t + 1].detach())
+            loss_state = loss_state + (self.spec.normalized_sq_error(state, batch.states[t + 1]) * valid[t]).sum()
+            reference_quat = batch.reference_quat[t] if batch.reference_quat is not None else None
+            logits = self.termination_logits(state, reference_root[t], reference_quat)
             target = batch.done[t].float()
-            loss_term = loss_term + F.binary_cross_entropy_with_logits(logits, target)
-            term_acc = term_acc + ((logits > 0) == (target > 0.5)).float().mean()
-        loss_state, loss_term, term_acc = loss_state / k, loss_term / k, term_acc / k
+            loss_term = loss_term + (F.binary_cross_entropy_with_logits(logits, target, reduction="none") * valid[t]).sum()
+            term_acc = term_acc + (((logits > 0) == (target > 0.5)).float() * valid[t]).sum()
+        loss_state, loss_term, term_acc = loss_state / denominator, loss_term / denominator, term_acc / denominator
         return loss_state + self.cfg.term_loss_weight * loss_term, {
             "state_loss": loss_state.detach(), "term_bce": loss_term.detach(), "term_acc": term_acc.detach()
         }

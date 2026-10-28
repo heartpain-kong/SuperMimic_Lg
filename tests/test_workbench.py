@@ -35,6 +35,19 @@ def test_command_validation_and_argv(tmp_path):
             wb.build_command(bad, tmp_path, tmp_path / "run")
 
 
+def test_online_supermimic_command_uses_bptt_runner(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/train.py").touch()
+    motion = tmp_path / "motion.npz"
+    motion.touch()
+    command = wb.build_command(dict(mode="supermimic", mjlab_root=str(tmp_path), motion_file=str(motion),
+                                    backend="mujoco", device="cpu"), tmp_path, tmp_path / "run")
+    assert command[3] == "supermimic_lg.scripts.train_supermimic"
+    assert "--output-dir" in command and "--policy-updates" in command
+    assert not any("ppo" in word.lower() for word in command)
+
+
 def test_completion_log_and_history(tmp_path, monkeypatch):
     monkeypatch.setattr(wb, "build_command", lambda *_: [sys.executable, "-u", "-c", "print('hello training')"])
     manager = wb.TrainingManager(tmp_path)

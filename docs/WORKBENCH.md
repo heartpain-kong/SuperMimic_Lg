@@ -29,17 +29,20 @@ python -m supermimic_lg.workbench --root "$PWD" --port 8089
 
 按 `Ctrl+B` 后按 `D` 离开；`tmux attach -t supermimic` 回到工作台终端。不要同时启动多个工作台来管理同一批训练。
 
-Windows 开发环境也可运行 `python -m supermimic_lg.workbench --root E:\SuperMimic_Lg --port 8089`，用于 CPU 冒烟和世界模型拟合；mjlab GPU tracking 仍在已部署的 Ubuntu 上运行。
+Windows 使用安装了 PyTorch/MuJoCo 的 Python 3.10–3.13 环境，也可运行 `python -m supermimic_lg.workbench --root E:\SuperMimic_Lg --port 8089`。选择 MuJoCo 后端可做真实物理的 CPU 在线 SuperMimic 训练；mjlab CUDA 后端在已部署的 Ubuntu GPU 环境使用。
 
 ## 选择入口
 
 | 工作台入口 | 输入 | 使用的训练方式 | 输出 |
 |---|---|---|---|
+| LgDog · SuperMimic 在线训练 | LgDog 仓库、motion NPZ；无需离线 replay | 仿真采集 → 世界模型 → imagined actor-critic/BPTT | 策略、critic、世界模型和优化器检查点 |
 | SuperMimic 世界模型 | replay NPZ：states/actions/contexts/[done] | 拟合可微动力学模型 | 实时损失、world_model.pt |
 | LgDog1 动作跟踪 · PPO | LgDog 仓库路径、12 关节/13 body motion NPZ | 现有 mjlab tracking PPO runner | tracking 策略 checkpoint、训练日志 |
 | 算法冒烟检查 | LgDog1 或 Go2、CPU/GPU | 合成数据检查 BPTT 梯度 | 维度、损失、动作梯度 |
 
 表单路径是服务器上的路径；可以填绝对路径，也可以填相对于工作目录的路径。tracking 默认 64 个环境、20 次迭代，先确认链路后再扩大规模。GPU 训练前按部署文档检查 PyTorch 和 Warp。进程启动失败时，界面显示“失败”、退出码和完整错误日志，不会将启动成功当成训练成功。
+
+要让 LgDog 真正训练 SuperMimic，请选第一个入口。选择 `mjlab` 使用 GPU 并行物理；选择 `MuJoCo` 使用 CPU 真实物理（界面自动改为 2 个环境和 CPU）。预热轮数内先采集并训练世界模型，之后开始 BPTT 策略更新。`每轮采集步数`、`世界模型更新次数`、`BPTT 更新次数` 控制三部分的更新比例。继续训练时填写同一 motion/XML 和策略结构对应的 `checkpoint.pt`。详细命令见 [在线训练说明](SUPERMIMIC_LGDOG.md)。
 
 ## 停止和文件位置
 
@@ -53,6 +56,8 @@ Windows 开发环境也可运行 `python -m supermimic_lg.workbench --root E:\Su
 SuperMimic_Lg/logs/workbench/<训练编号>/
 ├── job.json          # 参数命令、PID、时间和退出状态
 ├── train.log         # stdout/stderr，界面显示末尾 64 KiB
+├── checkpoint.pt     # 在线 SuperMimic：policy / critic / wm 与优化器状态
+├── metrics.jsonl     # 在线 SuperMimic：真实奖励、WM 损失、策略梯度等
 └── world_model.pt    # 世界模型任务生成
 ```
 
@@ -62,6 +67,6 @@ tracking runner 将 checkpoint 和 TensorBoard 文件写入工作目录的 `logs
 
 SuperMimic 的策略优化通过可微世界模型中的短视野 rollout 做 BPTT，梯度从预测回报穿过动力学模型传到策略。PPO 则用采样轨迹估计优势，通过概率比值与裁剪目标更新策略。SuperMimic 使用 actor/critic 或 GAE，不代表它使用 PPO。
 
-本仓库已有世界模型和 imagined actor-critic 核心，但完整的 mjlab 采集→世界模型→BPTT 策略更新循环尚未封装成工作台入口。目前工作台上的 PPO 指 LgDog1 tracking 桥接复用的上游 runner。世界模型 checkpoint 不是可直接部署到机器人的策略。
+本仓库的 LgDog 在线入口已接通采集→世界模型→BPTT 策略更新，直接调用独立 `train_supermimic` runner。PPO 指另一个 LgDog1 tracking 基线入口。在线训练保存的 checkpoint 包含策略；单独拟合世界模型时生成的 `world_model.pt` 仅包含动力学模型。
 
 论文：[SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model](https://arxiv.org/abs/2610.28480)。

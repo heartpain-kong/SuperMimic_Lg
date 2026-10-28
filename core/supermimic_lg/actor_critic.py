@@ -70,8 +70,10 @@ class ImaginedActorCritic:
         )
         discounts = cfg.gamma ** torch.arange(cfg.horizon, device=state.device, dtype=state.dtype)
         actor_objective = (discounts[:, None] * rollout.survival[:-1] * rollout.rewards).sum(0).mean()
-        actor_objective = actor_objective + (cfg.gamma ** cfg.horizon) * rollout.survival[-1].mean() * values_actor.mean()
+        actor_objective = actor_objective + (cfg.gamma ** cfg.horizon) * (rollout.survival[-1] * values_actor).mean()
         actor_loss = -actor_objective
+        if not torch.isfinite(actor_loss):
+            raise FloatingPointError("non-finite imagined actor loss")
         with torch.no_grad():
             values = self.critic(canonical.reshape(-1, canonical.shape[-1]),
                                   goals[: cfg.horizon + 1].reshape(-1, goals.shape[-1]),
@@ -80,7 +82,7 @@ class ImaginedActorCritic:
         targets = gae_targets(rollout.rewards.detach(), rollout.termination_probability.detach(), values, cfg.gamma, cfg.gae_lambda)
         self.policy_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
-        policy_grad = torch.nn.utils.clip_grad_norm_(self.policy.parameters(), cfg.grad_clip)
+        policy_grad = torch.nn.utils.clip_grad_norm_(self.policy.parameters(), cfg.grad_clip, error_if_nonfinite=True)
         self.policy_opt.step()
         # Fit the critic to the same fixed imagined targets.
         self.critic.requires_grad_(True)
@@ -90,9 +92,11 @@ class ImaginedActorCritic:
                                context[None].expand(cfg.horizon, -1, -1).reshape(-1, context.shape[-1]),
                                root_error[:-1].detach().reshape(-1, 4))
             critic_loss = torch.nn.functional.mse_loss(pred, targets.detach().reshape(-1))
+            if not torch.isfinite(critic_loss):
+                raise FloatingPointError("non-finite imagined critic loss")
             self.critic_opt.zero_grad(set_to_none=True)
             critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), cfg.grad_clip)
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), cfg.grad_clip, error_if_nonfinite=True)
             self.critic_opt.step()
         self.wm.requires_grad_(True)
         self.critic.requires_grad_(True)

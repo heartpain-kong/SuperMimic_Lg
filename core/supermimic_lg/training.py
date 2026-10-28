@@ -15,9 +15,11 @@ class ReplayWindow:
     contexts: torch.Tensor  # [B, context_dim]
     done: torch.Tensor  # [K, B]
     reference_root: torch.Tensor | None = None  # [K, B, 3]
+    valid: torch.Tensor | None = None
+    reference_quat: torch.Tensor | None = None
 
     def as_batch(self) -> WorldModelBatch:
-        return WorldModelBatch(self.states, self.actions, self.contexts, self.done)
+        return WorldModelBatch(self.states, self.actions, self.contexts, self.done, self.valid, self.reference_quat)
 
 
 class WorldModelTrainer:
@@ -28,9 +30,11 @@ class WorldModelTrainer:
 
     def update(self, window: ReplayWindow) -> dict[str, float]:
         loss, metrics = self.model.window_loss(window.as_batch(), window.reference_root)
+        if not torch.isfinite(loss):
+            raise FloatingPointError("non-finite world model loss")
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
-        grad_norm = nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+        grad_norm = nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip, error_if_nonfinite=True)
         self.optimizer.step()
         out = {k: float(v.detach().cpu()) for k, v in metrics.items()}
         out.update(loss=float(loss.detach().cpu()), grad_norm=float(grad_norm.detach().cpu()))
