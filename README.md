@@ -2,6 +2,8 @@
 
 这个目录把 `E:\足式机器人\SuperMimic\代码\SuperMimic-Reproduced_CuboiLeo` 的核心思路整理成可复用的四足实现：学习一个带上下文条件的可微动力学模型，用软终止概率保留 BPTT 梯度，再在模型中进行短视野想象更新。状态、动作、目标和跟踪奖励都按机器人维度生成，默认提供 Unitree Go2 与现有 `E:\mjlab\unitree_rl_mjlab_lgdog` 的 LgDog1 映射。
 
+Ubuntu 22.04 的从克隆、GPU/依赖安装到启动步骤见 [`docs/UBUNTU_22_04.md`](docs/UBUNTU_22_04.md)。
+
 现有 LgDog1 XML 的关节顺序是 `[FR, FL, RR, RL] × [hip, thigh, calf]`，动作缩放为 `0.25`，默认站姿为 `(hip=0, thigh=0, calf=0.2)`。这些值来自 `E:\mjlab\unitree_rl_mjlab_lgdog\unitree_rl_mjlab_lgdog\src\assets\robots\lgdog1\lgdog1_constants.py` 与 `lgdog1.xml`，集中在 [`core/supermimic_lg/config.py`](E:/SuperMimic_Lg/core/supermimic_lg/config.py)。
 
 先安装依赖并跑 CPU 冒烟：
@@ -29,7 +31,7 @@ python -m supermimic_lg.data.convert input.npz output_lgdog.npz --fps 50
 ```powershell
 cd E:\SuperMimic_Lg
 $env:PYTHONPATH = "E:\SuperMimic_Lg\core"
-python -m supermimic_lg.scripts.train_lgdog --mjlab-root E:\mjlab --motion-file E:\path\to\lgdog_motion.npz --env.scene.num_envs 64 --agent.max_iterations 20
+python -m supermimic_lg.scripts.train_lgdog --mjlab-root E:\mjlab --motion-file E:\path\to\lgdog_motion.npz --env.scene.num-envs=64 --agent.max-iterations=20
 ```
 
 真实 LgDog 训练前需要准备与 XML 身体顺序一致的参考动作，并确认关节单位、IMU 坐标、动作缩放和控制周期。G1 的 29 DoF LAFAN1 文件不能直接喂给 LgDog1；应先重定向或使用四足 gait/teleoperation 数据，再用 [`core/supermimic_lg/data/motion.py`](E:/SuperMimic_Lg/core/supermimic_lg/data/motion.py) 做维度和 NaN 检查。
