@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "supermimic-lg"
+version = "0.1.0"
+description = "Generic SuperMimic differentiable world model with quadruped and LgDog1 adapters"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "torch>=2.1"]
+
+[project.optional-dependencies]
+mjlab = ["mujoco>=3.1", "tyro>=0.8"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+supermimic-lg-smoke = "supermimic_lg.scripts.smoke:main"
+supermimic-lg-register-lgdog = "supermimic_lg.scripts.register_lgdog_tracking:main"
+supermimic-lg-train-wm = "supermimic_lg.scripts.train_world_model:main"
+
+[tool.setuptools.packages.find]
+where = ["core"]
