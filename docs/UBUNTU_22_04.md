@@ -146,7 +146,9 @@ supermimic-lg-train-wm "$WORK_ROOT/replay.npz" \
   --horizon 8
 ```
 
-当前代码提供 replay 加载和世界模型优化入口，但尚未提供 mjlab replay 自动采集器，也没有把世界模型/actor-critic 训练封装成可直接部署的完整 runner；上述命令会打印最后一轮指标，不会保存可部署 checkpoint。第 6 节的 `train_lgdog` 是 mjlab 参考动作 tracking runner，用来验证 LgDog 任务适配，不能据此声称 SuperMimic 策略训练已经完成。
+世界模型入口会输出训练进度，默认每 100 步及结束时将模型、优化器和步数保存到 `logs/world_model/model.pt`，可用 `--output /path/to/model.pt` 改路径。Linux 收到正常停止信号（SIGINT）时保存最近模型；强制终止时使用最近一次已保存的文件。此文件是动力学模型，还需要策略训练才能得到机器人控制策略。当前尚未提供 mjlab replay 自动采集器，也没有完整 SuperMimic actor-critic 训练 runner。第 6 节的 `train_lgdog` 使用 mjlab PPO 参考动作 tracking runner。
+
+需要通过浏览器启动和结束训练时，按 [工作台说明](WORKBENCH.md) 启动网页控制台。
 
 目前 mjlab 桥接注册的任务是 `LgDog1-SuperMimic-Tracking`。Unitree Go2 配置可用于通用核心和 CPU 冒烟，但本仓库尚未提供 Go2 的 mjlab 任务注册桥。
 

@@ -8,3 +8,5 @@ logs/
 *.pt
 *.pth
 *.onnx
+build/
+dist/

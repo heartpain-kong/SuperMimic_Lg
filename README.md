@@ -4,6 +4,14 @@
 
 Ubuntu 22.04 的从克隆、GPU/依赖安装到启动步骤见 [`docs/UBUNTU_22_04.md`](docs/UBUNTU_22_04.md)。
 
+安装完成后可用网页启动/停止训练、设置参数、预览命令和查看实时日志：
+
+```bash
+python -m supermimic_lg.workbench --root /path/to/SuperMimic_Lg --port 8089
+```
+
+本机浏览器打开 `http://127.0.0.1:8089`；Ubuntu 远程服务器使用 SSH 转发后访问。完整步骤见 [工作台说明](docs/WORKBENCH.md)。工作台区分世界模型拟合、LgDog1 PPO tracking 和算法冒烟；完整 SuperMimic BPTT 策略训练 runner 仍待接入。
+
 现有 LgDog1 XML 的关节顺序是 `[FR, FL, RR, RL] × [hip, thigh, calf]`，动作缩放为 `0.25`，默认站姿为 `(hip=0, thigh=0, calf=0.2)`。这些值来自 `E:\mjlab\unitree_rl_mjlab_lgdog\unitree_rl_mjlab_lgdog\src\assets\robots\lgdog1\lgdog1_constants.py` 与 `lgdog1.xml`，集中在 [`core/supermimic_lg/config.py`](E:/SuperMimic_Lg/core/supermimic_lg/config.py)。
 
 先安装依赖并跑 CPU 冒烟：
