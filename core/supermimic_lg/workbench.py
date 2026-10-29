@@ -58,6 +58,8 @@ def build_command(data, root, run_dir):
                 raise ValueError("terrain 必须是 flat 或 rough")
             if terrain == "rough" and backend != "mjlab":
                 raise ValueError("楼梯/斜坡/起伏地形需要选择 mjlab GPU 后端")
+            if backend == "mjlab" and not device(data).startswith("cuda:"):
+                raise ValueError("mjlab GPU 后端需要选择 CUDA 设备")
             command += ["supermimic_lg.scripts.train_supermimic", "--mjlab-root", str(mjlab),
                         "--motion-file", str(motion), "--backend", backend, "--device", device(data),
                         "--terrain", terrain, "--output-dir", str(run_dir)]

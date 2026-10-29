@@ -56,6 +56,7 @@ class PolicyPlayback:
         if ck.get("algorithm") != "supermimic_bptt":
             raise ValueError("请选择在线 SuperMimic 的 checkpoint.pt；不支持 PPO 或单独世界模型文件")
         metadata = ck["metadata"]
+        self.training_terrain = metadata.get("terrain", "flat")
         if metadata["motion_sha256"] != file_hash(motion_file) or metadata["xml_sha256"] != file_hash(xml):
             raise ValueError("参考动作或机器人 XML 与检查点不一致，请选择训练时使用的文件")
         self.shape = PolicyShape(**metadata["policy_shape"])
@@ -110,6 +111,7 @@ class PolicyPlayback:
 
     def telemetry(self):
         return dict(checkpoint=self.checkpoint, checkpoint_iteration=self.checkpoint_iteration,
+                    training_terrain=self.training_terrain, playback_terrain="flat",
                     history=self.shape.history, frame_dim=self.shape.obs_dim, frame=self.frame,
                     motion_frames=self.motion.length, steps=self.steps, resets=self.resets,
                     root_height=float(self.sim.state()[0, 2]), pending_reset=self.pending_reset)

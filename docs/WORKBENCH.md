@@ -44,7 +44,7 @@ Windows 使用安装了 PyTorch/MuJoCo 的 Python 3.10–3.13 环境，也可运
 
 表单路径是服务器上的路径；可以填绝对路径，也可以填相对于工作目录的路径。tracking 默认 64 个环境、20 次迭代，先确认链路后再扩大规模。GPU 训练前按部署文档检查 PyTorch 和 Warp。进程启动失败时，界面显示“失败”、退出码和完整错误日志，不会将启动成功当成训练成功。
 
-要让 LgDog 真正训练 SuperMimic，请选第一个入口。选择 `mjlab` 使用 GPU 并行物理；选择 `MuJoCo` 使用 CPU 真实物理（界面自动改为 2 个环境和 CPU）。**训练地形**可选平地或 `mjlab 粗糙地形`。粗糙地形复用 LgDog 仓库中的 `lgdog1_rough_terrain_cfg()`，包含平地、上/下台阶、上/下坡、随机起伏和波浪地形；初始难度限制在前两级，并按成功/失败逐步升降地形等级。粗糙地形目前只支持 mjlab GPU 后端。预热轮数内先采集并训练世界模型，之后开始 BPTT 策略更新。`每轮采集步数`、`世界模型更新次数`、`BPTT 更新次数` 控制三部分的更新比例。继续训练时填写相同地形、motion/XML 和策略结构对应的 `checkpoint.pt`。详细命令见 [在线训练说明](SUPERMIMIC_LGDOG.md)。
+要让 LgDog 真正训练 SuperMimic，请选第一个入口。选择 `mjlab` 使用 GPU 并行物理；选择 `MuJoCo` 使用 CPU 真实物理（界面自动改为 2 个环境和 CPU）。**训练地形**可选平地或 `mjlab 粗糙地形`。粗糙地形复用 LgDog 仓库中的 `lgdog1_rough_terrain_cfg()`，包含平地、上/下台阶、上/下坡、随机起伏和波浪地形；初始难度限制在前两级，升级需至少 50 个控制步、参考平面位移达到 2 米、实际沿参考方向前进至少 2 米且达到参考位移的 70%；物理失败或明显停滞则降级，短片段保持等级。粗糙地形目前只支持 mjlab GPU 后端。预热轮数内先采集并训练世界模型，之后开始 BPTT 策略更新。`每轮采集步数`、`世界模型更新次数`、`BPTT 更新次数` 控制三部分的更新比例。继续训练时填写相同地形、motion/XML 和策略结构对应的 `checkpoint.pt`。详细命令见 [在线训练说明](SUPERMIMIC_LGDOG.md)。
 
 地形生成只提供仿真课程，不会把站立参考动作变成步态。使用粗糙地形时，必须提供与 LgDog 关节/body 顺序一致的移动参考动作；当前 `standing.npz` 仍只训练站立。现阶段 SuperMimic actor 使用本体感觉历史和未来动作目标，没有 terrain height scan，因此这是盲地形训练；泛化到未知楼梯/坡度仍需用多地形、多种子评估。现有策略观看器运行在平地 MuJoCo 上，不能忠实预览粗糙地形检查点。
 
@@ -102,3 +102,5 @@ MUJOCO_GL=osmesa python -m supermimic_lg.workbench --root "$PWD" --port 8089
 ```
 
 渲染初始化失败时页面显示“观看失败”和错误日志；没有图像时不会用静态示意图替代。实时网格渲染、播放/暂停/重置和进程隔离已在本机 Windows / MuJoCo 3.5.0 上验证，Ubuntu EGL/OSMesa 仍待对应服务器验证。
+
+训练日志的 `transitions` 记录累计真实采集量，`replay_transitions` 记录当前回放容量。新检查点会保存累计量；旧检查点缺少该计数时，从恢复后的采集重新计数。粗糙地形日志另外报告 `terrain/level_mean`、`terrain/promotions` 和 `terrain/demotions`。静止参考动作会在粗糙地形训练启动前报错，避免将站立训练当作地形行走。

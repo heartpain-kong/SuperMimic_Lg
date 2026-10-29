@@ -41,7 +41,7 @@ mjlab 后端直接构建 LgDog 的 Scene/Simulation、地形和 PD 执行器，�
 
 ### mjlab 风格楼梯、坡道和起伏地形
 
-训练命令添加 `--terrain rough` 可启用 LgDog 仓库 `src/tasks/velocity/config/lgdog1/terrain_cfg.py` 中的地形生成器：平地、上/下台阶、上/下坡、随机高度起伏和波浪。初始分配从低难度行开始；每个成功回合提升一档，物理失败则降低一档。可用工作台里的“训练地形”选择相同配置。
+训练命令添加 `--terrain rough` 可启用 LgDog 仓库 `src/tasks/velocity/config/lgdog1/terrain_cfg.py` 中的地形生成器：平地、上/下台阶、上/下坡、随机高度起伏和波浪。初始分配从低难度行开始；升级需至少 50 个控制步、参考平面位移达到 2 米、实际沿参考方向前进至少 2 米且达到参考位移的 70%；物理失败或明显停滞则降低一档，短片段保持等级。可用工作台里的“训练地形”选择相同配置。
 
 该功能需要 `--backend mjlab --device cuda:0`，原生 MuJoCo CPU 后端仍仅有平地。SuperMimic 仍在跟踪 motion NPZ 提供的未来根/body 轨迹；静止 `standing.npz` 不会教会机器人行走。当前策略没有 terrain height scan，属于仅凭本体历史的盲地形训练。原有策略观看器也使用平地 MuJoCo，不能把粗糙地形检查点当作地形通过验证。训练粗糙地形请提供真实行走参考动作，并在 mjlab 上检查每类地形的通过率和跌倒率。
 
@@ -91,3 +91,5 @@ python -m supermimic_lg.scripts.train_supermimic \
 | 42 | 20 | 320 | 100 | 19 | 0.001189 |
 
 当前是单参考片段、固定名义上下文（摩擦 .6、编码器偏置和 COM 偏移为 0）的在线实现。多片段训练、terrain height scan、完整域随机化、论文规模的吞吐和真机性能仍需后续实现/验证。
+
+训练日志的 `transitions` 记录累计真实采集量，`replay_transitions` 记录当前回放容量。新检查点会保存累计量；旧检查点缺少该计数时，从恢复后的采集重新计数。粗糙地形日志另外报告 `terrain/level_mean`、`terrain/promotions` 和 `terrain/demotions`。静止参考动作会在粗糙地形训练启动前报错，避免将站立训练当作地形行走。

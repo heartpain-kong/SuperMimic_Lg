@@ -20,6 +20,7 @@ from supermimic_lg.rewards import tracking_reward
 from supermimic_lg.simulator import MjlabSimulator, MujocoSimulator, load_lgdog_model, resolve_robot_xml
 from supermimic_lg.state import quat_apply_inverse
 from supermimic_lg.training import WorldModelTrainer
+from supermimic_lg.terrain import curriculum_decisions
 from supermimic_lg.world_model import WorldModel
 
 
@@ -34,6 +35,10 @@ def file_hash(path):
 class Trainer:
     def __init__(self, args):
         self.args = args
+        if args.backend == "mjlab" and not args.device.startswith("cuda:"):
+            raise ValueError("mjlab requires a CUDA device; use mujoco for CPU physics")
+        if args.terrain == "rough" and args.backend != "mjlab":
+            raise ValueError("rough terrain requires the mjlab backend")
         torch.manual_seed(args.seed)
         torch.set_num_threads(args.torch_threads)
         self.robot = lgdog1_spec()
@@ -41,6 +46,10 @@ class Trainer:
         self.output.mkdir(parents=True, exist_ok=True)
         self.xml = resolve_robot_xml(args.mjlab_root, args.robot_xml)
         self.motion = MotionSequence(args.motion_file, args.goal_horizon, args.device)
+        if args.terrain == "rough":
+            root_xy = self.motion.pos[:, 0, :2]
+            if float((root_xy.amax(0) - root_xy.amin(0)).norm()) < .5:
+                raise ValueError("rough terrain needs a moving reference motion; standing.npz cannot teach terrain traversal")
         if self.motion.length <= args.horizon + args.goal_horizon + 1:
             raise ValueError("motion is too short: need more than horizon + goal_horizon + 1 frames")
         self.fk = LgDogKinematics(load_lgdog_model(self.xml), args.device)
@@ -54,6 +63,7 @@ class Trainer:
         self.ac = ImaginedActorCritic(self.wm, self.policy, self.critic, ActorCriticConfig(horizon=args.horizon))
         self.replay = OnlineReplay(args.replay_capacity, args.num_envs, (self.shape.history, self.shape.obs_dim), args.device)
         self.iteration = self.wm_updates = self.policy_updates = 0
+        self.collected_transitions = 0
         self.metadata = {"motion_sha256": file_hash(args.motion_file), "xml_sha256": file_hash(self.xml),
                          "policy_shape": asdict(self.shape), "network_size": args.network_size,
                          "terrain": args.terrain,
@@ -65,15 +75,15 @@ class Trainer:
                 raise ValueError(f"--iterations is a total target and must exceed checkpoint iteration {self.iteration}")
         config = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
         (self.output / "config.json").write_text(json.dumps({"args": config, **self.metadata}, indent=2), encoding="utf-8")
-        if args.terrain == "rough" and args.backend != "mjlab":
-            raise ValueError("rough terrain requires the mjlab backend; MuJoCo CPU mode currently supports flat terrain only")
-        self.sim = (MjlabSimulator(args.mjlab_root, args.num_envs, args.device, terrain=args.terrain)
+        self.sim = (MjlabSimulator(args.mjlab_root, args.num_envs, args.device, terrain=args.terrain, seed=args.seed)
                     if args.backend == "mjlab" else MujocoSimulator(self.xml, args.num_envs, args.device))
         self.frames = torch.zeros(args.num_envs, dtype=torch.long, device=args.device)
         self.previous_action = torch.zeros(args.num_envs, 12, device=args.device)
         self.history = torch.zeros(args.num_envs, args.history, self.shape.obs_dim, device=args.device)
         self.episode_steps = torch.zeros_like(self.frames)
         self.episode_return = torch.zeros(args.num_envs, device=args.device)
+        self.episode_start_xy = torch.zeros(args.num_envs, 2, device=args.device)
+        self.episode_reference_xy = torch.zeros_like(self.episode_start_xy)
         self.reset(torch.arange(args.num_envs, device=args.device))
 
     @torch.no_grad()
@@ -85,6 +95,8 @@ class Trainer:
         self.frames[ids] = frames
         self.previous_action[ids] = 0.
         state = self.sim.state()[ids]
+        self.episode_start_xy[ids] = state[:, :2]
+        self.episode_reference_xy[ids] = self.motion.pos[frames, 0, :2]
         first_frame = observation(state, self.previous_action[ids], self.sim.context[ids])
         self.history[ids] = first_frame[:, None].expand(-1, self.args.history, -1)
         self.episode_steps[ids] = 0
@@ -93,11 +105,13 @@ class Trainer:
     @torch.no_grad()
     def collect(self):
         rewards, failures, finished, lengths, returns = [], 0, 0, [], []
+        promotions = demotions = 0
         for _ in range(self.args.collect_steps):
             state = self.sim.state()
             clean = self.policy(self.history, self.motion.goal(self.frames))
             executed = (clean + self.args.action_noise * torch.randn_like(clean)).clamp(-1., 1.)
             next_state = self.sim.step(executed)
+            self.collected_transitions += self.args.num_envs
             if not torch.isfinite(next_state).all():
                 raise FloatingPointError("physics generated non-finite states; inspect model/control configuration")
             next_frame = self.frames + 1
@@ -121,21 +135,29 @@ class Trainer:
                 lengths.extend(self.episode_steps[ids].tolist())
                 returns.extend(self.episode_return[ids].tolist())
                 if self.args.terrain == "rough":
-                    # Failed episodes move down a terrain row; completed reference
-                    # clips / time limits move up. This mirrors mjlab's terrain
-                    # curriculum while keeping all terrain families represented.
-                    self.sim.update_terrain_curriculum(ids, ~terminal[ids])
+                    up, down, _ = curriculum_decisions(
+                        next_state[ids, :2] - self.episode_start_xy[ids],
+                        self.motion.pos[next_frame[ids], 0, :2] - self.episode_reference_xy[ids],
+                        self.episode_steps[ids], terminal[ids])
+                    self.sim.update_terrain_curriculum(ids, up, down)
+                    promotions += int(up.sum())
+                    demotions += int(down.sum())
             finished += len(ids)
             failures += int(terminal.sum())
             rewards.append(float(reward.mean()))
             self.reset(ids)
-        return {"real_reward": sum(rewards) / len(rewards), "failures": failures, "episodes": finished,
-                "episode_length": sum(lengths) / max(1, len(lengths)), "episode_return": sum(returns) / max(1, len(returns))}
+        metrics = {"real_reward": sum(rewards) / len(rewards), "failures": failures, "episodes": finished,
+                   "episode_length": sum(lengths) / max(1, len(lengths)), "episode_return": sum(returns) / max(1, len(returns))}
+        if self.args.terrain == "rough":
+            metrics.update(self.sim.terrain_metrics())
+            metrics.update({"terrain/promotions": promotions, "terrain/demotions": demotions})
+        return metrics
 
     def save(self):
         path = self.output / "checkpoint.pt"
         tmp = path.with_suffix(".pt.tmp")
         torch.save({"algorithm": "supermimic_bptt", "iteration": self.iteration,
+                    "collected_transitions": self.collected_transitions,
                     "wm_updates": self.wm_updates, "policy_updates": self.policy_updates,
                     "wm": self.wm.state_dict(), "policy": self.policy.state_dict(), "critic": self.critic.state_dict(),
                     "wm_opt": self.wm_trainer.optimizer.state_dict(), "policy_opt": self.ac.policy_opt.state_dict(),
@@ -166,6 +188,7 @@ class Trainer:
         for optimizer, key in ((self.wm_trainer.optimizer, "wm_opt"), (self.ac.policy_opt, "policy_opt"), (self.ac.critic_opt, "critic_opt")):
             optimizer.load_state_dict(checkpoint[key])
         self.iteration, self.wm_updates, self.policy_updates = checkpoint["iteration"], checkpoint["wm_updates"], checkpoint["policy_updates"]
+        self.collected_transitions = checkpoint.get("collected_transitions", 0)
         torch.set_rng_state(checkpoint["rng_state"].cpu())
 
     def run(self):
@@ -197,7 +220,8 @@ class Trainer:
                         metrics["dynamics_action_grad_norm"] = float(gradient.norm())
                 self.iteration = iteration
                 metrics.update(iteration=iteration, wm_updates=self.wm_updates, policy_updates=self.policy_updates,
-                               transitions=self.replay.count * self.args.num_envs, elapsed_s=time.monotonic() - started)
+                               transitions=self.collected_transitions,
+                               replay_transitions=self.replay.count * self.args.num_envs, elapsed_s=time.monotonic() - started)
                 if not all(torch.isfinite(torch.tensor(v)) for v in metrics.values()):
                     raise FloatingPointError("non-finite training metrics")
                 with (self.output / "metrics.jsonl").open("a", encoding="utf-8") as stream:

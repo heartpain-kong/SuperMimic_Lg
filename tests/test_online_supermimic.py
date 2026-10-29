@@ -155,6 +155,7 @@ def test_real_physics_online_loop_and_resume(robot_xml, tmp_path, seed):
         torch.testing.assert_close(v, checkpoint["policy"][k])
     resumed.run()
     assert resumed.iteration == 3 and resumed.policy_updates == 3
+    assert resumed.collected_transitions == 24
     with pytest.raises(ValueError, match="must exceed checkpoint iteration"):
         Trainer(args)
     args.iterations, args.history = 4, 10
