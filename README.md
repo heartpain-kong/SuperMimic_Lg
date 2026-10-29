@@ -33,6 +33,8 @@ uv run --python .venv\Scripts\python.exe -m pytest -q
 
 动作文件采用 mjlab 的 NPZ 键：`joint_pos[T,J]`、`joint_vel[T,J]`、`body_pos_w[T,B,3]`、`body_quat_w[T,B,4]`、`body_lin_vel_w[T,B,3]`、`body_ang_vel_w[T,B,3]`，可选 `fps`。转换和校验：
 
+仓库现提供由 V28 HIM 教师在 MuJoCo 中实际行走录制的 [LgDog 平地行走参考](motions/README.md)：`motions/lgdog_walk.npz`，50 fps、600 帧，含来源哈希与三个种子的录制检查报告。可用于替换站立参考并开始平地模仿训练。使用自己的行走策略导出新数据可运行 `python -m supermimic_lg.scripts.record_reference`，具体命令见该说明。
+
 ```powershell
 $env:PYTHONPATH = "E:\SuperMimic_Lg\core"
 python -m supermimic_lg.data.convert input.npz output_lgdog.npz --fps 50

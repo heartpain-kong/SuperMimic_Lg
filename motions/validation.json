@@ -1,0 +1,176 @@
+{
+  "scope": "flat locomotion reference generation with small initial joint perturbations; not rough terrain or learned SuperMimic evaluation",
+  "reports": [
+    {
+      "source": "HIM teacher rollout in native MuJoCo; no root teleportation",
+      "teacher_sha256": "dff8e96afe2bea5a1984fa470bc4a9b84b36347d5e034347d188fd5259af4133",
+      "xml_sha256": "f1ca7f33118514fd962014a0f88555ff494e8e76977ba0908979631a0298ebc3",
+      "seed": 0,
+      "commanded_speed": 0.6,
+      "frames": 600,
+      "fps": 50,
+      "displacement_m": [
+        6.396988391876221,
+        -0.47649750113487244,
+        8.83936882019043e-05
+      ],
+      "progress_ratio": 0.8899538516998291,
+      "min_upright": 0.99943846769968,
+      "trunk_contacts": 0,
+      "foot_contact_fraction": [
+        0.59,
+        0.5233333333333333,
+        0.48,
+        0.5716666666666667
+      ],
+      "terrain": "flat",
+      "accepted": true,
+      "npz_sha256": "ce86ad79cc26a8d1dafffec5eacedebb7ba7bc69d88dcf73e97a92935ef98df1",
+      "max_fk_position_error_m": 9.56696339926566e-07,
+      "joint_names": [
+        "FR_hip_joint",
+        "FR_thigh_joint",
+        "FR_calf_joint",
+        "FL_hip_joint",
+        "FL_thigh_joint",
+        "FL_calf_joint",
+        "RR_hip_joint",
+        "RR_thigh_joint",
+        "RR_calf_joint",
+        "RL_hip_joint",
+        "RL_thigh_joint",
+        "RL_calf_joint"
+      ],
+      "body_names": [
+        "trunk",
+        "FR_hip",
+        "FR_thigh",
+        "FR_calf",
+        "FL_hip",
+        "FL_thigh",
+        "FL_calf",
+        "RR_hip",
+        "RR_thigh",
+        "RR_calf",
+        "RL_hip",
+        "RL_thigh",
+        "RL_calf"
+      ],
+      "teacher_history_frames": 6
+    },
+    {
+      "source": "HIM teacher rollout in native MuJoCo; no root teleportation",
+      "teacher_sha256": "dff8e96afe2bea5a1984fa470bc4a9b84b36347d5e034347d188fd5259af4133",
+      "xml_sha256": "f1ca7f33118514fd962014a0f88555ff494e8e76977ba0908979631a0298ebc3",
+      "seed": 1,
+      "commanded_speed": 0.6,
+      "frames": 600,
+      "fps": 50,
+      "displacement_m": [
+        6.402064323425293,
+        -0.4387128949165344,
+        -0.0006598830223083496
+      ],
+      "progress_ratio": 0.8906599879264832,
+      "min_upright": 0.9994738962860015,
+      "trunk_contacts": 0,
+      "foot_contact_fraction": [
+        0.5983333333333334,
+        0.53,
+        0.47,
+        0.5883333333333334
+      ],
+      "terrain": "flat",
+      "accepted": true,
+      "npz_sha256": "889b2a13feaabba7f44f2bfd59dd1ca8e871b71ec656e5138b58d39798dd2f3a",
+      "max_fk_position_error_m": 9.604026445231284e-07,
+      "joint_names": [
+        "FR_hip_joint",
+        "FR_thigh_joint",
+        "FR_calf_joint",
+        "FL_hip_joint",
+        "FL_thigh_joint",
+        "FL_calf_joint",
+        "RR_hip_joint",
+        "RR_thigh_joint",
+        "RR_calf_joint",
+        "RL_hip_joint",
+        "RL_thigh_joint",
+        "RL_calf_joint"
+      ],
+      "body_names": [
+        "trunk",
+        "FR_hip",
+        "FR_thigh",
+        "FR_calf",
+        "FL_hip",
+        "FL_thigh",
+        "FL_calf",
+        "RR_hip",
+        "RR_thigh",
+        "RR_calf",
+        "RL_hip",
+        "RL_thigh",
+        "RL_calf"
+      ],
+      "teacher_history_frames": 6
+    },
+    {
+      "source": "HIM teacher rollout in native MuJoCo; no root teleportation",
+      "teacher_sha256": "dff8e96afe2bea5a1984fa470bc4a9b84b36347d5e034347d188fd5259af4133",
+      "xml_sha256": "f1ca7f33118514fd962014a0f88555ff494e8e76977ba0908979631a0298ebc3",
+      "seed": 42,
+      "commanded_speed": 0.6,
+      "frames": 600,
+      "fps": 50,
+      "displacement_m": [
+        6.4003987312316895,
+        -0.4479210376739502,
+        0.0013480782508850098
+      ],
+      "progress_ratio": 0.8904283046722412,
+      "min_upright": 0.9994424937203589,
+      "trunk_contacts": 0,
+      "foot_contact_fraction": [
+        0.5966666666666667,
+        0.515,
+        0.475,
+        0.57
+      ],
+      "terrain": "flat",
+      "accepted": true,
+      "npz_sha256": "2c9db8b800d8646000ae79833f7ba0d6d9e86469af253ade4fca99c199eb4e7a",
+      "max_fk_position_error_m": 9.542561656417092e-07,
+      "joint_names": [
+        "FR_hip_joint",
+        "FR_thigh_joint",
+        "FR_calf_joint",
+        "FL_hip_joint",
+        "FL_thigh_joint",
+        "FL_calf_joint",
+        "RR_hip_joint",
+        "RR_thigh_joint",
+        "RR_calf_joint",
+        "RL_hip_joint",
+        "RL_thigh_joint",
+        "RL_calf_joint"
+      ],
+      "body_names": [
+        "trunk",
+        "FR_hip",
+        "FR_thigh",
+        "FR_calf",
+        "FL_hip",
+        "FL_thigh",
+        "FL_calf",
+        "RR_hip",
+        "RR_thigh",
+        "RR_calf",
+        "RL_hip",
+        "RL_thigh",
+        "RL_calf"
+      ],
+      "teacher_history_frames": 6
+    }
+  ]
+}
