@@ -136,9 +136,11 @@ def joint_addresses(model):
 
 
 class MjlabSimulator:
-    def __init__(self, mjlab_root, num_envs, device):
+    def __init__(self, mjlab_root, num_envs, device, terrain="flat"):
         if not str(device).startswith("cuda:"):
             raise ValueError("mjlab backend requires a CUDA device; use mujoco for CPU physics")
+        if terrain not in ("flat", "rough"):
+            raise ValueError("terrain must be flat or rough")
         from .adapters.mjlab_tracking import add_mjlab_project
         add_mjlab_project(mjlab_root)
         from mjlab.scene import Scene, SceneCfg
@@ -146,11 +148,25 @@ class MjlabSimulator:
         from mjlab.sim.sim import Simulation
         from mjlab.terrains import TerrainEntityCfg
         from src.assets.robots import get_lgdog1_robot_cfg
+        terrain_cfg = TerrainEntityCfg(terrain_type="plane")
+        if terrain == "rough":
+            # Reuse the LgDog-local mjlab distribution: flat patches, up/down
+            # stairs, up/down slopes, random heightfields and wave terrain.
+            from src.tasks.velocity.config.lgdog1.terrain_cfg import lgdog1_rough_terrain_cfg
+
+            terrain_cfg = TerrainEntityCfg(
+                terrain_type="generator",
+                terrain_generator=lgdog1_rough_terrain_cfg(),
+                max_init_terrain_level=1,
+            )
         self.device, self.num_envs = device, num_envs
         self.scene = Scene(SceneCfg(num_envs=num_envs, env_spacing=2.,
                                    entities={"robot": get_lgdog1_robot_cfg()},
-                                   terrain=TerrainEntityCfg(terrain_type="plane")), device=device)
-        self.sim = Simulation(num_envs=num_envs, cfg=SimulationCfg(mujoco=MujocoCfg(timestep=.002)),
+                                   terrain=terrain_cfg), device=device)
+        mujoco_cfg = MujocoCfg(timestep=.002, ccd_iterations=500,
+                               nconmax=35 if terrain == "rough" else None,
+                               contact_sensor_maxmatch=500 if terrain == "rough" else 64)
+        self.sim = Simulation(num_envs=num_envs, cfg=SimulationCfg(mujoco=mujoco_cfg),
                               model=self.scene.compile(), device=device)
         self.scene.initialize(mj_model=self.sim.mj_model, model=self.sim.model, data=self.sim.data)
         self.robot = self.scene["robot"]
@@ -162,6 +178,14 @@ class MjlabSimulator:
         self.context = torch.zeros(num_envs, 16, device=device)
         self.context[:, 0] = .6  # Fixed nominal context: no DR events in this first online runner.
         self.sim.forward()
+
+    def update_terrain_curriculum(self, ids, success):
+        """Move completed worlds through mjlab's terrain difficulty rows."""
+        terrain = self.scene["terrain"]
+        if getattr(terrain, "terrain_origins", None) is None or len(ids) == 0:
+            return
+        success = torch.as_tensor(success, dtype=torch.bool, device=ids.device)
+        terrain.update_env_origins(ids, success, ~success)
 
     def state(self):
         q, v = self.sim.data.qpos[:], self.sim.data.qvel[:]

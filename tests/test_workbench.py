@@ -49,6 +49,20 @@ def test_online_supermimic_command_uses_bptt_runner(tmp_path):
     assert not any("ppo" in word.lower() for word in command)
 
 
+def test_online_supermimic_rough_terrain_requires_mjlab_and_is_forwarded(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/train.py").touch()
+    motion = tmp_path / "motion.npz"
+    motion.touch()
+    args = dict(mode="supermimic", mjlab_root=str(tmp_path), motion_file=str(motion),
+                terrain="rough", backend="mjlab", device="cuda:0")
+    command = wb.build_command(args, tmp_path, tmp_path / "run")
+    assert command[command.index("--terrain") + 1] == "rough"
+    with pytest.raises(ValueError, match="需要选择 mjlab GPU 后端"):
+        wb.build_command({**args, "backend": "mujoco", "device": "cpu"}, tmp_path, tmp_path / "run")
+
+
 def test_completion_log_and_history(tmp_path, monkeypatch):
     monkeypatch.setattr(wb, "build_command", lambda *_: [sys.executable, "-u", "-c", "print('hello training')"])
     manager = wb.TrainingManager(tmp_path)

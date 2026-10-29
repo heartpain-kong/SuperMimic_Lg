@@ -56,6 +56,7 @@ class Trainer:
         self.iteration = self.wm_updates = self.policy_updates = 0
         self.metadata = {"motion_sha256": file_hash(args.motion_file), "xml_sha256": file_hash(self.xml),
                          "policy_shape": asdict(self.shape), "network_size": args.network_size,
+                         "terrain": args.terrain,
                          "state_convention": "root_link_pos_w,quat_wxyz,q,lin_vel_w,ang_vel_b,qd",
                          "context_mode": "fixed_friction_0.6_zero_encoder_bias_zero_com_offset"}
         if args.resume:
@@ -64,7 +65,10 @@ class Trainer:
                 raise ValueError(f"--iterations is a total target and must exceed checkpoint iteration {self.iteration}")
         config = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
         (self.output / "config.json").write_text(json.dumps({"args": config, **self.metadata}, indent=2), encoding="utf-8")
-        self.sim = MjlabSimulator(args.mjlab_root, args.num_envs, args.device) if args.backend == "mjlab" else MujocoSimulator(self.xml, args.num_envs, args.device)
+        if args.terrain == "rough" and args.backend != "mjlab":
+            raise ValueError("rough terrain requires the mjlab backend; MuJoCo CPU mode currently supports flat terrain only")
+        self.sim = (MjlabSimulator(args.mjlab_root, args.num_envs, args.device, terrain=args.terrain)
+                    if args.backend == "mjlab" else MujocoSimulator(self.xml, args.num_envs, args.device))
         self.frames = torch.zeros(args.num_envs, dtype=torch.long, device=args.device)
         self.previous_action = torch.zeros(args.num_envs, 12, device=args.device)
         self.history = torch.zeros(args.num_envs, args.history, self.shape.obs_dim, device=args.device)
@@ -116,6 +120,11 @@ class Trainer:
             if len(ids):
                 lengths.extend(self.episode_steps[ids].tolist())
                 returns.extend(self.episode_return[ids].tolist())
+                if self.args.terrain == "rough":
+                    # Failed episodes move down a terrain row; completed reference
+                    # clips / time limits move up. This mirrors mjlab's terrain
+                    # curriculum while keeping all terrain families represented.
+                    self.sim.update_terrain_curriculum(ids, ~terminal[ids])
             finished += len(ids)
             failures += int(terminal.sum())
             rewards.append(float(reward.mean()))
@@ -144,7 +153,10 @@ class Trainer:
 
     def load(self, path):
         checkpoint = torch.load(path, map_location=self.args.device, weights_only=True)
-        if checkpoint.get("algorithm") != "supermimic_bptt" or checkpoint.get("metadata") != self.metadata:
+        saved_metadata = dict(checkpoint.get("metadata", {}))
+        # Checkpoints created before the terrain option existed are flat runs.
+        saved_metadata.setdefault("terrain", "flat")
+        if checkpoint.get("algorithm") != "supermimic_bptt" or saved_metadata != self.metadata:
             saved_history = checkpoint.get("metadata", {}).get("policy_shape", {}).get("history", "unknown")
             raise ValueError("checkpoint algorithm, robot XML, motion, or policy architecture does not match this run; "
                              f"checkpoint history={saved_history}, current history={self.args.history}. "
@@ -161,6 +173,7 @@ class Trainer:
         first = self.iteration
         print(json.dumps({"algorithm": "SuperMimic BPTT", "backend": self.args.backend, "device": self.args.device,
                           "robot": "lgdog1", "state_dim": 37, "action_dim": 12, "num_envs": self.args.num_envs,
+                          "terrain": self.args.terrain,
                           "observation_history_shape": [self.args.num_envs, self.args.history, self.shape.obs_dim],
                           "resume_iteration": first, "context_mode": self.metadata["context_mode"]}), flush=True)
         try:
@@ -205,6 +218,8 @@ def parser():
     p.add_argument("--robot-xml", type=Path)
     p.add_argument("--motion-file", type=Path, required=True)
     p.add_argument("--backend", choices=("mjlab", "mujoco"), default="mjlab")
+    p.add_argument("--terrain", choices=("flat", "rough"), default="flat",
+                   help="flat plane or LgDog mjlab stairs/slopes/rough/wave terrain (mjlab backend only)")
     p.add_argument("--device", default="cuda:0")
     for name, default in (("num-envs", 64), ("iterations", 10000), ("collect-steps", 16), ("wm-updates", 10),
                           ("policy-updates", 2), ("warmup-iterations", 5), ("batch-size", 128), ("wm-horizon", 4),
@@ -227,6 +242,8 @@ def main():
         p.error("sizes/counts must be positive, replay capacity >= wm horizon, action noise in [0,1]")
     if args.device.startswith("cuda") and not torch.cuda.is_available():
         p.error("CUDA is unavailable; use --backend mujoco --device cpu for real CPU physics")
+    if args.terrain == "rough" and args.backend != "mjlab":
+        p.error("--terrain rough requires --backend mjlab")
     def stop(*_):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)
