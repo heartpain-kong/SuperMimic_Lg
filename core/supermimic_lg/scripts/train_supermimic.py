@@ -5,6 +5,7 @@ import argparse
 from dataclasses import asdict
 import hashlib
 import json
+import math
 from pathlib import Path
 import signal
 import time
@@ -240,9 +241,11 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--mjlab-root", type=Path, default=Path("../unitree_rl_mjlab_lgdog"))
     p.add_argument("--robot-xml", type=Path)
-    p.add_argument("--motion-file", type=Path, required=True)
+    p.add_argument("--task", choices=("tracking", "velocity"), default="tracking")
+    p.add_argument("--motion-file", type=Path)
     p.add_argument("--backend", choices=("mjlab", "mujoco"), default="mjlab")
-    p.add_argument("--terrain", choices=("flat", "rough"), default="flat",
+    from supermimic_lg.velocity_physics import TERRAINS
+    p.add_argument("--terrain", choices=TERRAINS, default="flat",
                    help="flat plane or LgDog mjlab stairs/slopes/rough/wave terrain (mjlab backend only)")
     p.add_argument("--device", default="cuda:0")
     for name, default in (("num-envs", 64), ("iterations", 10000), ("collect-steps", 16), ("wm-updates", 10),
@@ -254,6 +257,10 @@ def parser():
     p.add_argument("--action-noise", type=float, default=.1)
     p.add_argument("--output-dir", type=Path, default=Path("logs/supermimic_lgdog"))
     p.add_argument("--resume", type=Path)
+    p.add_argument("--init-policy", type=Path, help="velocity only: transfer actor weights, restart world model/critic/counters")
+    p.add_argument("--command-vx", type=float, default=.6, help="absolute planar forward command limit, m/s")
+    p.add_argument("--command-vy", type=float, default=.3)
+    p.add_argument("--command-yaw", type=float, default=.6)
     return p
 
 
@@ -266,12 +273,24 @@ def main():
         p.error("sizes/counts must be positive, replay capacity >= wm horizon, action noise in [0,1]")
     if args.device.startswith("cuda") and not torch.cuda.is_available():
         p.error("CUDA is unavailable; use --backend mujoco --device cpu for real CPU physics")
-    if args.terrain == "rough" and args.backend != "mjlab":
+    if args.task == "tracking" and args.motion_file is None:
+        p.error("--motion-file is required for --task tracking; velocity needs no motion file")
+    if args.init_policy and (args.task != "velocity" or args.resume):
+        p.error("--init-policy is velocity-only and mutually exclusive with --resume")
+    if args.task == "tracking" and args.terrain not in ("flat", "rough"):
+        p.error("tracking supports flat/rough; named terrain families are available in velocity mode")
+    if args.task == "tracking" and args.terrain == "rough" and args.backend != "mjlab":
         p.error("--terrain rough requires --backend mjlab")
+    if any(not 0 <= x <= 3 or not math.isfinite(x) for x in (args.command_vx,args.command_vy,args.command_yaw)):
+        p.error("command limits must be finite and in [0,3]")
     def stop(*_):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)
-    Trainer(args).run()
+    if args.task == "velocity":
+        from .train_velocity import VelocityTrainer
+        VelocityTrainer(args).run()
+    else:
+        Trainer(args).run()
 
 
 if __name__ == "__main__":

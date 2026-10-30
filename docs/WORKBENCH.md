@@ -35,6 +35,8 @@ Windows 使用安装了 PyTorch/MuJoCo 的 Python 3.10–3.13 环境，也可运
 
 ## 选择入口
 
+**速度指令运控**无需参考 NPZ，使用本体观测、速度指令及在线地形世界模型训练；**统一评估**会对速度策略和已有 HIM/PPO 导出使用相同物理场景、指令、种子和评价标准。详见 [速度模式与评估](VELOCITY_MBRL.md)。原有参考动作跟踪仍是独立任务，旧 tracking 检查点不能直接加载成速度策略。速度检查点可直接在策略观看面板播放，无需 motion，并使用实际选定地形。
+
 | 工作台入口 | 输入 | 使用的训练方式 | 输出 |
 |---|---|---|---|
 | LgDog · SuperMimic 在线训练 | LgDog 仓库、motion NPZ；无需离线 replay | 仿真采集 → 世界模型 → imagined actor-critic/BPTT | 策略、critic、世界模型和优化器检查点 |

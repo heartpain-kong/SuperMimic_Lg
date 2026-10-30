@@ -42,27 +42,62 @@ def build_command(data, root, run_dir):
     """Build argv from a fixed set of training entry points, never shell text."""
     mode = data.get("mode", "smoke")
     command = [sys.executable, "-u", "-m"]
-    if mode in ("tracking", "supermimic"):
+    if mode == "benchmark":
+        project = input_path(data, "mjlab_root", root, directory=True)
+        checkpoint = input_path(data, "benchmark_checkpoint", root)
+        teacher = input_path(data, "him_onnx", root)
+        terrain = data.get("terrain", "flat")
+        if terrain not in ("flat", "stairs_up", "stairs_down", "slope_up", "slope_down", "rough_height", "wave"):
+            raise ValueError("统一评估请逐一选择具体地形，不能用单环境代表混合地形")
+        backend = data.get("backend", "mujoco")
+        if backend not in ("mujoco", "mjlab"):
+            raise ValueError("无效仿真后端")
+        if backend == "mjlab" and not device(data).startswith("cuda:"):
+            raise ValueError("mjlab 评估需要 CUDA")
+        seeds = str(data.get("eval_seeds", "0,1,42")).split(",")
+        if not 1 <= len(seeds) <= 20 or any(not s.strip().isdigit() for s in seeds):
+            raise ValueError("评估种子请填写 1 到 20 个逗号分隔的非负整数")
+        if any(int(s) > 2147483647 for s in seeds):
+            raise ValueError("评估种子超出范围")
+        command += ["supermimic_lg.scripts.benchmark_velocity", "--checkpoint", str(checkpoint),
+            "--him-onnx", str(teacher), "--mjlab-root", str(project), "--terrain", terrain,
+            "--backend", backend, "--device", device(data), "--seconds", str(integer(data,"eval_seconds",10,5,120)),
+            "--level", str(integer(data,"eval_level",1,0,9)), "--seeds", *[str(int(s)) for s in seeds],
+            "--output", str(run_dir/"comparison.json")]
+        for field, flag in (("sm_timing", "supermimic-training-manifest"), ("him_timing", "him-training-manifest")):
+            if str(data.get(field, "")).strip():
+                command += ["--"+flag, str(input_path(data,field,root))]
+        return command
+    if mode in ("tracking", "supermimic", "velocity"):
         mjlab = input_path(data, "mjlab_root", root, directory=True)
         candidates = (mjlab, mjlab / "unitree_rl_mjlab_lgdog",
                       mjlab / "unitree_rl_mjlab_lgdog" / "unitree_rl_mjlab_lgdog")
         if not any((p / "src").is_dir() and (p / "scripts/train.py").is_file() for p in candidates):
             raise ValueError("mjlab_root 必须包含 LgDog 的 src/ 和 scripts/train.py")
-        motion = input_path(data, "motion_file", root)
-        if mode == "supermimic":
+        motion = input_path(data, "motion_file", root) if mode != "velocity" else None
+        if mode in ("supermimic", "velocity"):
             backend = data.get("backend", "mjlab")
             if backend not in ("mjlab", "mujoco"):
                 raise ValueError("backend 必须是 mjlab 或 mujoco")
             terrain = data.get("terrain", "flat")
-            if terrain not in ("flat", "rough"):
-                raise ValueError("terrain 必须是 flat 或 rough")
-            if terrain == "rough" and backend != "mjlab":
+            allowed = ("flat", "rough", "stairs_up", "stairs_down", "slope_up", "slope_down", "rough_height", "wave") if mode == "velocity" else ("flat", "rough")
+            if terrain not in allowed:
+                raise ValueError("该训练模式不支持所选地形")
+            if mode == "supermimic" and terrain == "rough" and backend != "mjlab":
                 raise ValueError("楼梯/斜坡/起伏地形需要选择 mjlab GPU 后端")
             if backend == "mjlab" and not device(data).startswith("cuda:"):
                 raise ValueError("mjlab GPU 后端需要选择 CUDA 设备")
             command += ["supermimic_lg.scripts.train_supermimic", "--mjlab-root", str(mjlab),
-                        "--motion-file", str(motion), "--backend", backend, "--device", device(data),
+                        "--task", "velocity" if mode == "velocity" else "tracking", "--backend", backend, "--device", device(data),
                         "--terrain", terrain, "--output-dir", str(run_dir)]
+            if motion is not None:
+                command += ["--motion-file", str(motion)]
+            if mode == "velocity":
+                for key, default in (("command_vx", .6), ("command_vy", .3), ("command_yaw", .6)):
+                    value = float(data.get(key, default))
+                    if not math.isfinite(value) or not 0 <= value <= 3:
+                        raise ValueError("速度指令上限必须为 0 到 3 之间的有限数值")
+                    command += ["--"+key.replace("_", "-"), str(value)]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
                     ("history", "history", 3, 128),
@@ -72,6 +107,10 @@ def build_command(data, root, run_dir):
             command += ["--seed", str(integer(data, "seed", 42, 0, 2147483647))]
             if str(data.get("resume", "")).strip():
                 command += ["--resume", str(input_path(data, "resume", root))]
+            if mode == "velocity" and str(data.get("init_policy", "")).strip():
+                if str(data.get("resume", "")).strip():
+                    raise ValueError("初始策略和继续训练检查点只能填写一个")
+                command += ["--init-policy", str(input_path(data,"init_policy",root))]
             return command
         command += ["supermimic_lg.scripts.train_lgdog", "--mjlab-root", str(mjlab),
                     "--motion-file", str(motion),
@@ -273,7 +312,7 @@ def viewer_config(data, root):
     if not isinstance(config, dict):
         config = {}
     merged = {key: data.get(key) or config.get(key) for key in ("motion_file", "mjlab_root", "robot_xml")}
-    motion = input_path(merged, "motion_file", root)
+    motion = input_path(merged, "motion_file", root) if config.get("task") != "velocity" else None
     # Resolve the XML without importing torch/mjlab in the HTTP server.
     if merged.get("robot_xml"):
         xml = input_path(merged, "robot_xml", root)
@@ -291,8 +330,12 @@ def viewer_config(data, root):
 def build_viewer_command(data, root, run_dir):
     checkpoint, motion, xml = viewer_config(data, root)
     command = [sys.executable, "-u", "-m", "supermimic_lg.viewer", "--checkpoint", str(checkpoint),
-               "--motion-file", str(motion), "--robot-xml", str(xml), "--output-dir", str(run_dir),
+               "--robot-xml", str(xml), "--output-dir", str(run_dir),
                "--start-frame", str(integer(data, "start_frame", 0, 0, 100000000))]
+    if motion is None:
+        command += ["--task", "velocity", "--mjlab-root", str(xml.parents[5])]
+    else:
+        command += ["--motion-file", str(motion)]
     if data.get("collision_only") is True:
         command.append("--collision-only")
     return command

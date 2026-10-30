@@ -49,6 +49,28 @@ def test_online_supermimic_command_uses_bptt_runner(tmp_path):
     assert not any("ppo" in word.lower() for word in command)
 
 
+def test_velocity_workbench_needs_no_reference_motion(tmp_path):
+    (tmp_path/'src').mkdir();(tmp_path/'scripts').mkdir();(tmp_path/'scripts/train.py').touch()
+    command=wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mujoco',device='cpu',
+                                  terrain='stairs_up'),tmp_path,tmp_path/'run')
+    assert '--motion-file' not in command
+    assert command[command.index('--task')+1]=='velocity'
+    assert command[command.index('--terrain')+1]=='stairs_up'
+
+
+def test_benchmark_command_uses_shared_protocol_and_rejects_mixed_single_world(tmp_path):
+    checkpoint=tmp_path/'checkpoint.pt';checkpoint.touch()
+    teacher=tmp_path/'policy.onnx';teacher.touch()
+    args=dict(mode='benchmark',mjlab_root=str(tmp_path),benchmark_checkpoint=str(checkpoint),
+              him_onnx=str(teacher),backend='mujoco',device='cpu',terrain='stairs_up')
+    command=wb.build_command(args,tmp_path,tmp_path/'report')
+    assert command[3]=='supermimic_lg.scripts.benchmark_velocity'
+    assert command[command.index('--seeds')+1:command.index('--seeds')+4]==['0','1','42']
+    assert '--motion-file' not in command
+    with pytest.raises(ValueError,match='具体地形'):
+        wb.build_command({**args,'terrain':'rough'},tmp_path,tmp_path/'report')
+
+
 def test_online_supermimic_rough_terrain_requires_mjlab_and_is_forwarded(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "scripts").mkdir()

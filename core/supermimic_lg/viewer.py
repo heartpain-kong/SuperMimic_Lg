@@ -38,6 +38,53 @@ def encode_png(rgb):
             + chunk(b"IDAT", zlib.compress(pixels, 3)) + chunk(b"IEND", b""))
 
 
+class VelocityPlayback:
+    """Reference-free controller playback on the actual selected terrain."""
+    def __init__(self, checkpoint, xml, root, visuals=True):
+        import torch
+        from .benchmark import CheckpointActor
+        from .velocity_physics import VelocitySimulator
+        self.actor = CheckpointActor(checkpoint, "cpu", xml)
+        self.sim = VelocitySimulator(xml, root, 1, "mujoco", "cpu", self.actor.metadata["terrain"],
+                                     seed=42, level=1, visuals=visuals)
+        self.checkpoint, self.steps, self.resets = str(Path(checkpoint).resolve()), 0, 0
+        self.command = torch.tensor([[.6, 0., 0.]])
+        self.pending_reset = False
+        self.reset()
+
+    def reset(self):
+        import torch
+        from .velocity_task import frame, phase_at
+        self.sim.reset(torch.tensor([0]))
+        self.frame = 0
+        self.previous = torch.zeros(1,12)
+        state, _ = self.sim.observe()
+        obs = frame(state,self.previous,self.command,phase_at(torch.tensor([0])))
+        self.history = obs[:,None].repeat(1,self.actor.history,1)
+        self.pending_reset = False
+
+    def step(self):
+        import torch
+        from .velocity_task import frame, phase_at, failure
+        if self.pending_reset:
+            self.reset(); self.resets += 1
+        action = self.actor(self.history)
+        self.sim.step(action)
+        state,context = self.sim.observe()
+        self.frame += 1; self.steps += 1
+        obs = frame(state,action,self.command,phase_at(torch.tensor([self.frame])))
+        self.history = torch.cat((self.history[:,1:],obs[:,None]),1)
+        self.previous = action
+        self.pending_reset = bool(failure(state,context)[0]) or self.frame >= 500
+
+    def telemetry(self):
+        return dict(task="velocity", checkpoint=self.checkpoint, checkpoint_iteration=self.actor.iteration,
+            history=self.actor.history, frame_dim=47, frame=self.frame, motion_frames=501,
+            steps=self.steps, resets=self.resets, root_height=float(self.sim.data[0].qpos[2]),
+            training_terrain=self.actor.metadata["terrain"], playback_terrain=self.sim.terrain,
+            command=self.command[0].tolist(), pending_reset=self.pending_reset)
+
+
 class PolicyPlayback:
     """A deterministic CPU physics rollout, with checkpoint-defined input shape."""
     def __init__(self, checkpoint, motion_file, xml, visuals=True, start_frame=0):
@@ -120,7 +167,8 @@ class PolicyPlayback:
 def main():
     p = argparse.ArgumentParser(description="SuperMimic 策略实时观看进程")
     p.add_argument("--checkpoint", type=Path, required=True)
-    p.add_argument("--motion-file", type=Path, required=True)
+    p.add_argument("--task", choices=("tracking", "velocity"), default="tracking")
+    p.add_argument("--motion-file", type=Path)
     p.add_argument("--mjlab-root", type=Path, default=Path("../unitree_rl_mjlab_lgdog"))
     p.add_argument("--robot-xml", type=Path)
     p.add_argument("--output-dir", type=Path, required=True)
@@ -133,9 +181,13 @@ def main():
     import mujoco
     from .simulator import resolve_robot_xml
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    playback = PolicyPlayback(args.checkpoint, args.motion_file,
-                              resolve_robot_xml(args.mjlab_root, args.robot_xml),
-                              visuals=not args.collision_only, start_frame=args.start_frame)
+    xml = resolve_robot_xml(args.mjlab_root, args.robot_xml)
+    if args.task == "velocity":
+        playback = VelocityPlayback(args.checkpoint, xml, args.mjlab_root, visuals=not args.collision_only)
+    else:
+        if args.motion_file is None: p.error("tracking playback requires --motion-file")
+        playback = PolicyPlayback(args.checkpoint, args.motion_file, xml,
+                                  visuals=not args.collision_only, start_frame=args.start_frame)
     renderer = None
     stopped = False
     def stop(*_):
@@ -145,10 +197,13 @@ def main():
     signal.signal(signal.SIGTERM, stop)
     try:
         renderer = mujoco.Renderer(playback.sim.model, height=360, width=640)
+        trunk_id = next(i for i in range(playback.sim.model.nbody)
+                        if (mujoco.mj_id2name(playback.sim.model, mujoco.mjtObj.mjOBJ_BODY, i) or "").split("/")[-1] == "trunk")
         camera = mujoco.MjvCamera()
         camera.type = mujoco.mjtCamera.mjCAMERA_FREE
         camera.distance = 1.25
         options = mujoco.MjvOption()
+        options.geomgroup[1] = not args.collision_only
         options.geomgroup[3] = bool(args.collision_only)
         control = dict(paused=False, speed=1., view="side", reset=0)
         last_reset, last_render, last_step, frame_id = 0, 0., time.monotonic(), 0
@@ -182,7 +237,7 @@ def main():
                 camera.azimuth, camera.elevation = {"side": (90., -20.), "front": (180., -20.), "top": (90., -80.)}[view]
                 signature = (playback.steps, last_reset, view)
                 if signature != last_signature:
-                    camera.lookat[:] = playback.sim.data[0].xipos[playback.sim.model.body("trunk").id]
+                    camera.lookat[:] = playback.sim.data[0].xipos[trunk_id]
                     renderer.update_scene(playback.sim.data[0], camera=camera, scene_option=options)
                     atomic_write(args.output_dir / "frame.png", encode_png(renderer.render()))
                     frame_id += 1
