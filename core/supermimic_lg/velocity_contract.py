@@ -9,6 +9,7 @@ def sha(path):
 
 
 def shared_task_contract(xml,root,args):
+    from .velocity_objective import objective_from, command_settings
     profile=None
     root=Path(root).resolve()
     candidates=(root,root/'unitree_rl_mjlab_lgdog',root/'unitree_rl_mjlab_lgdog/unitree_rl_mjlab_lgdog')
@@ -27,7 +28,9 @@ def shared_task_contract(xml,root,args):
         native_adapter_sha256=sha(Path(__file__).parent/'adapters/mjlab_velocity.py'),
         control_dt=.02,physics_dt=.005,actor_frame_dim=47,history=args.history,critic_frame_dim=129,
         command_limits=[args.command_vx,args.command_vy,args.command_yaw],command_resampling_seconds=5.,
-        standing_fraction=.1,episode_steps=args.episode_steps,reset_joint_noise=.003,
+        command_settings=command_settings(args), objective=objective_from(args).as_dict(),
+        objective_code_sha256=sha(Path(__file__).with_name('velocity_objective.py')),
+        standing_fraction=command_settings(args)['standing_fraction'],episode_steps=args.episode_steps,reset_joint_noise=.003,
         reset_heading=0.,domain_randomization=False,observation_noise=False,seed=args.seed,
         action_scale=.25,clip_actions=1.,reward_scaled_by_dt=False)
     return contract,hashlib.sha256(json.dumps(contract,sort_keys=True).encode()).hexdigest()

@@ -49,6 +49,9 @@ class VelocityPlayback:
                                      seed=42, level=1, visuals=visuals)
         self.checkpoint, self.steps, self.resets = str(Path(checkpoint).resolve()), 0, 0
         self.command = torch.tensor([[.6, 0., 0.]])
+        settings = self.actor.metadata.get('command_config', {})
+        if settings.get('mode') == 'fixed':
+            self.command[:] = torch.tensor(settings['values'])
         self.pending_reset = False
         self.reset()
 
@@ -59,7 +62,8 @@ class VelocityPlayback:
         self.frame = 0
         self.previous = torch.zeros(1,12)
         state, _ = self.sim.observe()
-        obs = frame(state,self.previous,self.command,phase_at(torch.tensor([0])))
+        phase = phase_at(torch.tensor([0]))*(self.command.norm(dim=-1)>=.1)[:,None]
+        obs = frame(state,self.previous,self.command,phase)
         self.history = obs[:,None].repeat(1,self.actor.history,1)
         self.pending_reset = False
 
@@ -72,7 +76,8 @@ class VelocityPlayback:
         self.sim.step(action)
         state,context = self.sim.observe()
         self.frame += 1; self.steps += 1
-        obs = frame(state,action,self.command,phase_at(torch.tensor([self.frame])))
+        phase = phase_at(torch.tensor([self.frame]))*(self.command.norm(dim=-1)>=.1)[:,None]
+        obs = frame(state,action,self.command,phase)
         self.history = torch.cat((self.history[:,1:],obs[:,None]),1)
         self.previous = action
         self.pending_reset = bool(failure(state,context)[0]) or self.frame >= 500

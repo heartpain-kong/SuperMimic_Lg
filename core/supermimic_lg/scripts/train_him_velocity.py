@@ -22,6 +22,8 @@ def main():
     p.add_argument('--command-vx',type=float,default=.6)
     p.add_argument('--command-vy',type=float,default=.3)
     p.add_argument('--command-yaw',type=float,default=.6)
+    from supermimic_lg.velocity_objective import add_objective_arguments, objective_from, command_settings
+    add_objective_arguments(p)
     p.add_argument('--device',default='cuda:0')
     p.add_argument('--torch-threads',type=int,default=4)
     p.add_argument('--output-dir',type=Path,required=True)
@@ -29,18 +31,24 @@ def main():
     a=p.parse_args()
     if any(getattr(a,k)<1 for k in ('num_envs','iterations','history','network_size','collect_steps','episode_steps','torch_threads')):
         p.error('counts must be positive')
-    if any(not 0<=getattr(a,k)<=3 for k in ('command_vx','command_vy','command_yaw')):p.error('invalid command limits')
+    try:
+        objective = objective_from(a)
+        command_settings(a)
+    except ValueError as exc:
+        p.error(str(exc))
     if (a.output_dir/'config.json').exists():raise FileExistsError('choose a fresh output directory')
     import torch
     torch.set_num_threads(a.torch_threads)
     from supermimic_lg.adapters.mjlab_velocity import make_him_task
     cfg,agent=make_him_task(a.mjlab_root,a.terrain,a.num_envs,a.seed,a.history,a.network_size,
-                           a.command_vx,a.command_vy,a.command_yaw,a.episode_steps,a.collect_steps)
+                           a.command_vx,a.command_vy,a.command_yaw,a.episode_steps,a.collect_steps,
+                           a.command_mode,a.standing_fraction,objective)
     a.output_dir.mkdir(parents=True,exist_ok=True)
     config=dict(task='lgdog_velocity_v1',algorithm='existing_HIM_PPO',args={k:str(v) if isinstance(v,Path) else v for k,v in vars(a).items()},
         reward_source_sha256=digest(Path(__file__).parents[1]/'velocity_task.py'),
         actor_frame_dim=47,critic_dim=129,dt=.02,physics_dt=.005,domain_randomization=False,
         observation_noise=False,reward_scale_by_dt=False)
+    config.update(objective=objective.as_dict(),command_config=command_settings(a))
     config['learning_precision']='tf32'
     from supermimic_lg.velocity_contract import shared_task_contract
     from supermimic_lg.simulator import resolve_robot_xml

@@ -71,6 +71,47 @@ def test_training_contract_matches_native_gpu_and_detects_backend_mismatch(tmp_p
     cpu=SimpleNamespace(**values,backend='mujoco')
     assert shared_task_contract(xml,tmp_path,native)[1]==shared_task_contract(xml,tmp_path,gpu)[1]
     assert shared_task_contract(xml,tmp_path,cpu)[1]!=shared_task_contract(xml,tmp_path,gpu)[1]
+    for override in (dict(reward_velocity=3.), dict(swing_height=.1), dict(command_mode='fixed'),
+                     dict(standing_fraction=0.)):
+        changed=SimpleNamespace(**{**values,**override})
+        assert shared_task_contract(xml,tmp_path,changed)[1]!=shared_task_contract(xml,tmp_path,native)[1]
+
+
+def test_command_sampling_and_invalid_objectives():
+    from supermimic_lg.velocity_objective import sample_commands,objective_from,command_settings
+    fixed=dict(command_mode='fixed',command_vx=-.4,command_vy=0.,command_yaw=.2,standing_fraction=0.)
+    torch.testing.assert_close(sample_commands(fixed,20,'cpu'),torch.tensor([[-.4,0.,.2]]).repeat(20,1))
+    assert not sample_commands({**fixed,'standing_fraction':1.},20,'cpu').any()
+    random=sample_commands(dict(command_vx=.4,command_vy=0.,command_yaw=.2,standing_fraction=0.),1000,'cpu')
+    assert random[:,0].min()<0<random[:,0].max() and random[:,0].abs().max()<=.4
+    assert not random[:,1].any() and random[:,2].abs().max()<=.2
+    for bad in (dict(reward_velocity=float('nan')),dict(reward_slip=.1),dict(target_height=.05),dict(swing_height=-.1)):
+        with pytest.raises(ValueError):objective_from(bad)
+    for bad in (dict(command_mode='unknown'),dict(command_vx=-.1),dict(standing_fraction=1.1)):
+        with pytest.raises(ValueError):command_settings(bad)
+
+
+def test_configurable_reward_contributions_and_bptt_gradient():
+    from supermimic_lg.velocity_task import reward
+    from supermimic_lg.velocity_objective import VelocityObjective,objective_from
+    from supermimic_lg.config import lgdog1_spec
+    state,context=state_and_patch()
+    state[:,7:19]=torch.tensor(lgdog1_spec().default_joint_pos)
+    state.requires_grad_()
+    action=torch.zeros(2,12)
+    command=torch.tensor([[.4,0.,0.]]*2)
+    def feet(s):
+        pos=(s[:,:3]+s.new_tensor([0.,0.,-.26]))[:,None,:].expand(-1,4,-1)
+        return pos,s[:,19:22][:,None,:].expand(-1,4,-1)
+    args=(state,action,action,command,phase_at(torch.zeros(2)),context,feet)
+    total,terms=reward(*args,return_terms=True)
+    torch.testing.assert_close(total,sum(terms.values()))
+    cfg=objective_from({**VelocityObjective().as_dict(),'reward_velocity':3.,'swing_height':.10})
+    updated,new_terms=reward(*args,objective=cfg,return_terms=True)
+    torch.testing.assert_close(new_terms['velocity'],terms['velocity']*1.5)
+    assert not torch.allclose(new_terms['lift'],terms['lift'])
+    new_terms['velocity'].sum().backward()
+    assert torch.isfinite(state.grad).all() and (state.grad[:,19]>0).all()
 
 
 def test_native_him_shared_task_configuration_and_gpu_ray_order():
@@ -88,6 +129,12 @@ def test_native_him_shared_task_configuration_and_gpu_ray_order():
     assert not cfg.observations['actor'].enable_corruption
     assert cfg.commands['twist'].resampling_time_range==(5.,5.)
     assert cfg.commands['twist'].ranges.lin_vel_x==(-.6,.6)
+    custom,_=make_him_task(Path(xml).parents[5],command_mode='fixed',command_vx=-.4,
+        command_vy=0.,command_yaw=0.,standing_fraction=0.,objective={'reward_velocity':3.,'swing_height':.1})
+    assert custom.commands['twist'].ranges.lin_vel_x==(-.4,-.4)
+    assert custom.commands['twist'].rel_standing_envs==0.
+    assert custom.rewards['velocity_task'].params['objective']['reward_velocity']==3.
+    assert custom.rewards['velocity_task'].params['objective']['swing_height']==.1
     scan=cfg.scene.sensors[0]
     rays,directions=scan.pattern.generate_rays(None,'cpu')
     torch.testing.assert_close(rays[:,:2],offsets())
@@ -106,13 +153,21 @@ def test_reference_free_real_physics_training_and_resume(tmp_path,seed):
     args=parser().parse_args(['--task','velocity','--robot-xml',xml,'--backend','mujoco','--device','cpu',
         '--num-envs','2','--iterations','2','--collect-steps','4','--wm-updates','1','--policy-updates','1',
         '--warmup-iterations','1','--batch-size','4','--network-size','16','--horizon','2','--wm-horizon','2',
-        '--episode-steps','4','--seed',str(seed),'--output-dir',str(tmp_path/'run')])
+        '--episode-steps','4','--seed',str(seed),'--output-dir',str(tmp_path/'run'),
+        '--command-mode','fixed','--command-vx','.4','--command-vy','0','--command-yaw','0',
+        '--standing-fraction','0','--reward-velocity','3','--swing-height','.09'])
     assert args.motion_file is None
     trainer=VelocityTrainer(args)
     trainer.run()
+    torch.testing.assert_close(trainer.command,torch.tensor([[.4,0.,0.]]*2))
     ck=torch.load(tmp_path/'run/checkpoint.pt',weights_only=True)
     assert ck['algorithm']=='supermimic_velocity_bptt' and ck['transitions']==16
+    assert ck['metadata']['objective']['reward_velocity']==3.
+    assert ck['metadata']['command_config']['mode']=='fixed'
     args.resume=tmp_path/'run/checkpoint.pt';args.iterations=3
+    args.reward_velocity=4.
+    with pytest.raises(ValueError,match='contract differs'):VelocityTrainer(args)
+    args.reward_velocity=3.
     resumed=VelocityTrainer(args)
     resumed.run()
     assert resumed.transitions==24 and resumed.iteration==3

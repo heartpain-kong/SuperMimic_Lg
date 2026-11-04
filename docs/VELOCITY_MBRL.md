@@ -28,7 +28,32 @@ python -m supermimic_lg.scripts.train_supermimic \
   --output-dir logs/velocity_flat_seed42
 ```
 
-三项指令上限为正负对称范围，单位分别为 m/s、m/s、rad/s。每 5 秒重采样，10% 为站立指令。actor 输出 12 个限幅关节动作，动作缩放 0.25。默认采用原生 HIM 的物理步长 0.005 s、4 个子步，控制周期 0.02 s。
+默认 `--command-mode random`：三项指令是正负对称上限，单位分别为 m/s、m/s、rad/s。每 5 秒重采样，`--standing-fraction 0.1` 表示约 10% 为站立指令。`--command-mode fixed` 则把三项值作为固定指令，可以填写负值；需要一直运动时设置 `--standing-fraction 0`。actor 输出 12 个限幅关节动作，动作缩放 0.25。默认采用原生 HIM 的物理步长 0.005 s、4 个子步，控制周期 0.02 s。
+
+## 调整目标和奖励
+
+工作台的“平地前进 / 全向指令 / 地形前进”按钮只填写任务参数。“平地前进”设置固定前进 0.4 m/s、横移和转向为零、站立比例为零；“地形前进”在此基础上选择 rough。它们不是已验证收敛的配方。手动选择“随机范围”时，0.4 表示 -0.4 到 0.4；选择“固定速度”时，0.4 表示固定向前 0.4 m/s。
+
+展开“奖励与目标高度”即可修改 11 项权重、目标机身离地高度、固定抬脚高度和速度奖励宽度。命令行示例（追加到上面的速度训练命令）：
+
+```bash
+--command-mode fixed --command-vx 0.4 --command-vy 0 --command-yaw 0 \
+--standing-fraction 0 --target-height 0.30 --swing-height 0.06 \
+--reward-velocity 2 --reward-yaw 1 --reward-upright 0.5 --reward-height 0.5 \
+--reward-gait 0.3 --reward-lift 0.3 --reward-action-rate -0.05 \
+--reward-slip -0.05 --reward-energy -0.002 --reward-joint-limit -2 \
+--reward-trunk-contact -2 --velocity-tolerance 0.5 --yaw-tolerance 0.5
+```
+
+奖励项用非负数，惩罚项用非正数，0 可关闭一项。速度奖励为 `exp(-error² / tolerance²)`，宽度越小越严格；它是训练奖励参数，不会改变评估通过门槛。机身目标高度相对根下地面计算；抬脚目标相对脚下地面计算，尚不按前方台阶高度自动调整。物理失败高度范围、倾斜和机身接触判断也不会随奖励权重改变。
+
+实际仿真和 WM 推演调用同一个奖励函数并使用相同配置。日志会输出 `reward/velocity` 等各项加权贡献，工作台日志中可展开查看；这些贡献之和等于本轮真实平均奖励。WM 的监督目标仍是真实物理转移与接触，不是奖励大小。
+
+配置保存进 config.json 和 checkpoint，并参与共享任务哈希。改变奖励/目标后请创建新训练记录；需要沿用旧速度策略时使用 `--init-policy`，不要使用旧任务的 `--resume`。本次增加配置契约后，旧版本检查点也应采用 `--init-policy` 迁移。任务不会在已运行的训练中热更新。
+
+`train_him_velocity` 接受相同的上述参数。公平比较时，把这些参数同时传给两种算法，并核对 `shared_task_contract_sha256`；不能只修改一边的奖励。
+
+速度模式仍使用世界模型中的可微 BPTT 更新 actor，没有 PPO 概率比裁剪目标。它不包含指定动作的模仿目标，属于 WM+BPTT 运控扩展；需要模仿指定动作时选择 SuperMimic 动作跟踪并提供 NPZ。HIM/PPO 是独立对照入口。
 
 平面速度误差在仅绕 Z 轴旋转的 heading 坐标系中计算，偏航速度使用世界 Z 轴角速度。两种共享任务入口使用同一公式；历史 HIM 策略原先的训练定义可能不同，只能作为诊断基线。
 

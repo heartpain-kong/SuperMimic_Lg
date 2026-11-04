@@ -38,7 +38,7 @@ def xy_error(env):
     return velocity_error(snapshot(env)[0],env.command_manager.get_command("twist"))[0]
 
 
-def shared_reward(env, xml):
+def shared_reward(env, xml, objective=None):
     state,context=snapshot(env)
     if not hasattr(env,"_shared_velocity_feet"):
         env._shared_velocity_feet=FootKinematics(xml,env.device)
@@ -56,7 +56,7 @@ def shared_reward(env, xml):
         stats['previous_xy'][:] = state[:,:2]
         stats['last_step'] = env.common_step_counter
     return reward(state,env.action_manager.action,env.action_manager.prev_action,
-                  command,phase,context,env._shared_velocity_feet)
+                  command,phase,context,env._shared_velocity_feet,objective)
 
 
 def reset_shared(env, env_ids):
@@ -102,7 +102,12 @@ def curriculum(env,env_ids):
 
 
 def make_him_task(root,terrain='flat',n=64,seed=42,history=3,width=128,
-                  command_vx=.6,command_vy=.3,command_yaw=.6,episode_steps=500,collect_steps=16):
+                  command_vx=.6,command_vy=.3,command_yaw=.6,episode_steps=500,collect_steps=16,
+                  command_mode='random',standing_fraction=.1,objective=None):
+    from supermimic_lg.velocity_objective import objective_from, command_settings
+    objective = objective_from(objective).as_dict()
+    settings = command_settings(dict(command_mode=command_mode, standing_fraction=standing_fraction,
+        command_vx=command_vx, command_vy=command_vy, command_yaw=command_yaw))
     from .mjlab_tracking import add_mjlab_project
     add_mjlab_project(root)
     from src.tasks.velocity.config.lgdog1.him_env_cfg import lgdog1_him_standard_env_cfg,lgdog1_him_runner_cfg
@@ -122,15 +127,18 @@ def make_him_task(root,terrain='flat',n=64,seed=42,history=3,width=128,
     cfg.events={'reset_shared':EventTermCfg(func=reset_shared,mode='reset')}
     cfg.terminations={'time_out':TerminationTermCfg(func=mdp.time_out,time_out=True),
                       'physical_failure':TerminationTermCfg(func=physical_failure)}
-    cfg.rewards={'velocity_task':RewardTermCfg(func=shared_reward,weight=1.,params={'xml':str(resolve_robot_xml(root))})}
+    cfg.rewards={'velocity_task':RewardTermCfg(func=shared_reward,weight=1.,
+        params={'xml':str(resolve_robot_xml(root)), 'objective':objective})}
     cfg.curriculum={'terrain':CurriculumTermCfg(func=curriculum)} if terrain!='flat' else {}
     cfg.metrics={'velocity_error_xy_mps':MetricsTermCfg(func=xy_error)}
     command=cfg.commands['twist']
-    command.resampling_time_range=(5.,5.);command.rel_standing_envs=.1;command.heading_command=False
+    command.resampling_time_range=(5.,5.);command.rel_standing_envs=settings['standing_fraction'];command.heading_command=False
     command.init_velocity_prob=0.
-    command.ranges.lin_vel_x=(-command_vx,command_vx)
-    command.ranges.lin_vel_y=(-command_vy,command_vy)
-    command.ranges.ang_vel_z=(-command_yaw,command_yaw)
+    def bounds(value):
+        return (-value,value) if command_mode=='random' else (value,value)
+    command.ranges.lin_vel_x=bounds(command_vx)
+    command.ranges.lin_vel_y=bounds(command_vy)
+    command.ranges.ang_vel_z=bounds(command_yaw)
     actor=cfg.observations['actor'];actor.history_length=history;actor.enable_corruption=False
     cfg.observations['him_target']=ObservationGroupCfg(terms=deepcopy(actor.terms),concatenate_terms=True,
         enable_corruption=False,history_length=1,flatten_history_dim=True)

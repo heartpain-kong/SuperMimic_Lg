@@ -6,6 +6,7 @@ import torch
 from torch.nn import functional as F
 
 from supermimic_lg.world_model import mlp
+from supermimic_lg.velocity_objective import objective_from, command_settings, sample_commands
 from supermimic_lg.simulator import resolve_robot_xml
 from supermimic_lg.state import heading_quat, quat_apply
 from supermimic_lg.velocity_physics import VelocitySimulator
@@ -18,6 +19,8 @@ class VelocityTrainer:
         self.started = time.monotonic()
         from .train_supermimic import file_hash
         self.args = args
+        self.objective = objective_from(args)
+        self.command_config = command_settings(args)
         from supermimic_lg.benchmark import hardware
         self.training_hardware = hardware()
         torch.manual_seed(args.seed)
@@ -44,6 +47,7 @@ class VelocityTrainer:
             history=args.history, frame_dim=FRAME_DIM, network_size=args.network_size,
             terrain=args.terrain, context_dim=CONTEXT_DIM, state_dim=42, dt=.02, physics_dt=.005,
             actor_sensing="blind_proprioception_command_phase", terrain_grid=[9, 9, .25],
+            objective=self.objective.as_dict(), command_config=self.command_config,
             failure=dict(min_clearance=.14, max_clearance=.65, min_up=.5, trunk_contact=True))
         if args.init_policy:
             if args.resume: raise ValueError("init-policy and resume are mutually exclusive")
@@ -87,10 +91,7 @@ class VelocityTrainer:
             "shared_task_contract":self.task_contract,"shared_task_contract_sha256":self.task_contract_sha}, indent=2), encoding="utf-8")
 
     def sample_commands(self, ids):
-        a = self.args
-        self.command[ids] = torch.rand(len(ids), 3, device=a.device)*2.-1.
-        self.command[ids] *= self.command.new_tensor([a.command_vx, a.command_vy, a.command_yaw])
-        self.command[ids[torch.rand(len(ids), device=a.device)<.1]] = 0.
+        self.command[ids] = sample_commands(self.args, len(ids), self.args.device)
 
     @torch.no_grad()
     def reset(self, ids, physics=True):
@@ -109,6 +110,7 @@ class VelocityTrainer:
     @torch.no_grad()
     def collect(self):
         totals = torch.zeros(6, device=self.args.device)
+        component_totals = {}
         completed = promotions = demotions = 0
         lengths = []
         for _ in range(self.args.collect_steps):
@@ -126,7 +128,10 @@ class VelocityTrainer:
             failed = failure(next_state, next_context)
             self.steps += 1
             reset = failed | (self.steps >= self.args.episode_steps)
-            r = reward(next_state, executed, self.previous, self.command, phase, next_context, self.feet)
+            r, reward_terms = reward(next_state, executed, self.previous, self.command, phase,
+                                    next_context, self.feet, self.objective, return_terms=True)
+            for key, value in reward_terms.items():
+                component_totals[key] = component_totals.get(key, 0.) + value.sum()
             xy, yaw = velocity_error(next_state, self.command)
             world_command = quat_apply(heading_quat(state[:, 3:7]),
                 torch.cat((self.command[:, :2], torch.zeros_like(self.command[:, :1])), -1))[:, :2]
@@ -164,7 +169,8 @@ class VelocityTrainer:
         return dict(real_reward=float(totals[0]/denominator), velocity_error_xy_mps=float(totals[1]/denominator),
             yaw_error_rps=float(totals[2]/denominator), failures=int(totals[3]), episodes=completed,
             wm_online_state_error=float(totals[4]/denominator), wm_online_contact_error=float(totals[5]/denominator),
-            episode_length=sum(lengths)/max(1,len(lengths)), terrain_promotions=promotions, terrain_demotions=demotions)
+            episode_length=sum(lengths)/max(1,len(lengths)), terrain_promotions=promotions, terrain_demotions=demotions,
+            **{'reward/'+k:float(v/denominator) for k,v in component_totals.items()})
 
     def update_wm(self):
         a = self.args
@@ -206,7 +212,7 @@ class VelocityTrainer:
             inputs.append((state, phase))
             action = self.policy(history)
             next_state = self.wm.step(state, action, context)
-            rewards.append(reward(next_state, action, previous, command, phase, context, self.feet))
+            rewards.append(reward(next_state, action, previous, command, phase, context, self.feet, self.objective))
             survivals.append(survivals[-1]*(1-self.wm.termination(next_state, context)))
             angle = 2*torch.pi*.02/.6
             sine, cosine = phase.unbind(-1)

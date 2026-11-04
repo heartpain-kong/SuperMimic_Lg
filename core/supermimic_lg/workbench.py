@@ -93,11 +93,14 @@ def build_command(data, root, run_dir):
             if motion is not None:
                 command += ["--motion-file", str(motion)]
             if mode == "velocity":
-                for key, default in (("command_vx", .6), ("command_vy", .3), ("command_yaw", .6)):
-                    value = float(data.get(key, default))
-                    if not math.isfinite(value) or not 0 <= value <= 3:
-                        raise ValueError("速度指令上限必须为 0 到 3 之间的有限数值")
-                    command += ["--"+key.replace("_", "-"), str(value)]
+                from .velocity_objective import objective_from, command_settings
+                cfg = command_settings(data)
+                objective = objective_from(data)
+                command += ['--command-mode', cfg['mode'], '--standing-fraction', str(cfg['standing_fraction'])]
+                for key, value in zip(('command_vx', 'command_vy', 'command_yaw'), cfg['values']):
+                    command += ['--'+key.replace('_', '-'), str(value)]
+                for key, value in objective.as_dict().items():
+                    command += ['--'+key.replace('_', '-'), str(value)]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
                     ("history", "history", 3, 128),

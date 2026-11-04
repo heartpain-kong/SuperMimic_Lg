@@ -56,6 +56,17 @@ def test_velocity_workbench_needs_no_reference_motion(tmp_path):
     assert '--motion-file' not in command
     assert command[command.index('--task')+1]=='velocity'
     assert command[command.index('--terrain')+1]=='stairs_up'
+    fixed=wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mujoco',device='cpu',
+        command_mode='fixed',command_vx=-.4,command_vy=0,command_yaw=0,standing_fraction=0,
+        reward_velocity=3,swing_height=.1),tmp_path,tmp_path/'fixed')
+    for flag,value in (('--command-mode','fixed'),('--command-vx','-0.4'),('--reward-velocity','3.0'),
+                       ('--swing-height','0.1'),('--standing-fraction','0.0')):
+        assert fixed[fixed.index(flag)+1]==value
+    for invalid in ({'reward_velocity':'nan'},{'reward_slip':1},{'standing_fraction':-1},
+                    {'command_mode':'random','command_vx':-.4}):
+        with pytest.raises(ValueError):
+            wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mujoco',device='cpu',
+                                  **invalid),tmp_path,tmp_path/'bad')
 
 
 def test_benchmark_command_uses_shared_protocol_and_rejects_mixed_single_world(tmp_path):

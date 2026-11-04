@@ -7,6 +7,7 @@ from .config import lgdog1_spec
 from .state import QuadrupedStateSpec, heading_quat, quat_apply, quat_apply_inverse
 from .world_model import mlp
 from .velocity_physics import GRID, offsets
+from .velocity_objective import objective_from
 
 STATE_DIM = 42
 CONTEXT_DIM = 4 + GRID*GRID
@@ -135,7 +136,8 @@ class FootKinematics:
         return pos[:, self.ids]+offset, vel[:, self.ids]+torch.cross(ang[:, self.ids], offset, dim=-1)
 
 
-def reward(state, action, previous, command, phase, context, feet):
+def reward(state, action, previous, command, phase, context, feet, objective=None, return_terms=False):
+    cfg = objective_from(objective)
     xy, yaw = velocity_error(state, command)
     height = ground_clearance(state, context)
     gravity = quat_apply_inverse(state[:, 3:7], state.new_tensor([0., 0., -1.]).expand(len(state), 3))
@@ -147,7 +149,7 @@ def reward(state, action, previous, command, phase, context, feet):
     contact = state[:, 37:41]
     moving = (command.norm(dim=-1) > .1).float()
     gait = (1.-(contact-(1.-swing)).square().mean(-1))*moving
-    lift = torch.exp(-((clearance-.06*swing).square()/.03**2).mean(-1))*moving
+    lift = torch.exp(-((clearance-cfg.swing_height*swing).square()/.03**2).mean(-1))*moving
     slip = (contact*foot_vel[..., :2].square().sum(-1)).mean(-1)
     q, qd = state[:, 7:19], state[:, 25:37]
     default = state.new_tensor(lgdog1_spec().default_joint_pos)
@@ -157,10 +159,14 @@ def reward(state, action, previous, command, phase, context, feet):
     energy = (torque*qd).abs().mean(-1)
     qlimits = state.new_tensor(lgdog1_spec().joint_pos_limits)
     joint_limit = (torch.relu(qlimits[:, 0]-q)+torch.relu(q-qlimits[:, 1])).square().mean(-1)
-    return (2.*torch.exp(-xy.square()/.25) + torch.exp(-yaw.square()/.25)
-            + .5*(-gravity[:, 2]).clamp(-1., 1.) + .5*torch.exp(-(height-.30).square()/.01)
-            + .3*gait + .3*lift - .05*(action-previous).square().mean(-1)
-            - .05*slip - .002*energy - 2.*joint_limit - 2.*state[:, 41])
+    raw = dict(velocity=torch.exp(-xy.square()/cfg.velocity_tolerance**2),
+        yaw=torch.exp(-yaw.square()/cfg.yaw_tolerance**2), upright=(-gravity[:, 2]).clamp(-1., 1.),
+        height=torch.exp(-(height-cfg.target_height).square()/.01), gait=gait, lift=lift,
+        action_rate=(action-previous).square().mean(-1), slip=slip, energy=energy,
+        joint_limit=joint_limit, trunk_contact=state[:, 41])
+    terms = {key: getattr(cfg, 'reward_'+key)*value for key, value in raw.items()}
+    total = sum(terms.values())
+    return (total, terms) if return_terms else total
 
 
 class VelocityReplay:

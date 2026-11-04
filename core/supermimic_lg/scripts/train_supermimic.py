@@ -261,6 +261,8 @@ def parser():
     p.add_argument("--command-vx", type=float, default=.6, help="absolute planar forward command limit, m/s")
     p.add_argument("--command-vy", type=float, default=.3)
     p.add_argument("--command-yaw", type=float, default=.6)
+    from supermimic_lg.velocity_objective import add_objective_arguments
+    add_objective_arguments(p)
     return p
 
 
@@ -281,8 +283,12 @@ def main():
         p.error("tracking supports flat/rough; named terrain families are available in velocity mode")
     if args.task == "tracking" and args.terrain == "rough" and args.backend != "mjlab":
         p.error("--terrain rough requires --backend mjlab")
-    if any(not 0 <= x <= 3 or not math.isfinite(x) for x in (args.command_vx,args.command_vy,args.command_yaw)):
-        p.error("command limits must be finite and in [0,3]")
+    from supermimic_lg.velocity_objective import objective_from, command_settings
+    try:
+        objective_from(args)
+        command_settings(args)
+    except ValueError as exc:
+        p.error(str(exc))
     def stop(*_):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)
