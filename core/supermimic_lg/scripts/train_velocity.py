@@ -14,6 +14,22 @@ from supermimic_lg.velocity_task import (VelocityWorldModel, VelocityPolicy, Vel
     FootKinematics, frame, phase_at, failure, velocity_error, reward, FRAME_DIM, CONTEXT_DIM)
 
 
+def oom_hint(error, args, free_gib=None):
+    """Actionable sizes for the next attempt, halving the terms that scale memory."""
+    message = str(error).strip().splitlines()[0] if str(error).strip() else "CUDA out of memory"
+    hint = dict(error="cuda_out_of_memory", message=message,
+        current=dict(num_envs=args.num_envs, replay_capacity=args.replay_capacity,
+            batch_size=args.batch_size, horizon=args.horizon, history=args.history, terrain=args.terrain),
+        suggested=dict(num_envs=max(1, args.num_envs//2),
+            replay_capacity=max(args.wm_horizon, args.replay_capacity//2),
+            batch_size=max(1, args.batch_size//2), horizon=max(1, args.horizon//2)),
+        note=("回放缓存随 num_envs × replay_capacity 增长，BPTT 峰值随 batch_size × horizon 增长；"
+              "先把并行环境数减半并降低 replay-capacity、批大小和预测步长，或先用平地地形验证。"))
+    if free_gib is not None:
+        hint["free_gib_on_failure"] = free_gib
+    return hint
+
+
 class VelocityTrainer:
     def __init__(self, args):
         self.started = time.monotonic()
@@ -77,6 +93,11 @@ class VelocityTrainer:
                                      args.device, args.terrain, args.seed)
         self.feet = FootKinematics(self.xml, args.device)
         self.replay = VelocityReplay(args.replay_capacity, args.num_envs, args.history, args.device)
+        if str(args.device).startswith("cuda"):
+            free, total = torch.cuda.mem_get_info()
+            self.device_memory = dict(device=str(args.device), free_gib=round(free/2**30, 2),
+                total_gib=round(total/2**30, 2))
+            print(json.dumps({"device_memory": self.device_memory}), flush=True)
         n, d = args.num_envs, args.device
         self.steps = torch.zeros(n, dtype=torch.long, device=d)
         self.command = torch.zeros(n, 3, device=d)
@@ -259,6 +280,7 @@ class VelocityTrainer:
 
     def run(self):
         print(json.dumps(dict(algorithm="SuperMimic velocity BPTT", reference_motion=None, **self.metadata)), flush=True)
+        failed_oom = False
         try:
             for i in range(self.iteration+1, self.args.iterations+1):
                 metrics = self.collect()
@@ -276,5 +298,27 @@ class VelocityTrainer:
                 if i % self.args.save_interval == 0: self.save()
         except KeyboardInterrupt:
             print("Velocity training interrupted; saving checkpoint", flush=True)
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+            if "out of memory" not in str(error).lower():
+                raise
+            free_gib = None
+            try:
+                free_gib = round(torch.cuda.mem_get_info()[0]/2**30, 2)
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            print(json.dumps(oom_hint(error, self.args, free_gib), ensure_ascii=False), flush=True)
+            failed_oom = True
         finally:
-            self.save(); self.sim.close()
+            if failed_oom:
+                try:
+                    self.save()
+                    print("Checkpoint saved despite CUDA out-of-memory", flush=True)
+                except Exception as save_error:
+                    print(json.dumps(dict(error="checkpoint_save_failed", message=str(save_error)),
+                        ensure_ascii=False), flush=True)
+            else:
+                self.save()
+            self.sim.close()
+        if failed_oom:
+            raise SystemExit(3)

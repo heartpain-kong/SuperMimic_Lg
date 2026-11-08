@@ -177,3 +177,17 @@ def test_reference_free_real_physics_training_and_resume(tmp_path,seed):
     for key,value in resumed.policy.state_dict().items():
         torch.testing.assert_close(initialized.policy.state_dict()[key],value)
     initialized.sim.close()
+
+def test_oom_hint_halves_memory_dominant_sizes():
+    from types import SimpleNamespace
+    from supermimic_lg.scripts.train_velocity import oom_hint
+    args=SimpleNamespace(num_envs=2048,replay_capacity=256,batch_size=1024,horizon=16,history=4,
+                         terrain="rough",wm_horizon=8)
+    hint=oom_hint(RuntimeError("Graph launch error: Warp CUDA error 2: out of memory"),args,free_gib=0.4)
+    assert hint["error"]=="cuda_out_of_memory"
+    assert hint["suggested"]==dict(num_envs=1024,replay_capacity=128,batch_size=512,horizon=8)
+    assert hint["current"]["num_envs"]==2048 and hint["free_gib_on_failure"]==0.4
+    small=oom_hint(RuntimeError("out of memory"),SimpleNamespace(num_envs=1,replay_capacity=2,
+                    batch_size=1,horizon=1,history=3,terrain="flat",wm_horizon=8))
+    assert small["suggested"]["num_envs"]==1 and small["suggested"]["replay_capacity"]==8
+    assert small["suggested"]["batch_size"]==1 and small["suggested"]["horizon"]==1
