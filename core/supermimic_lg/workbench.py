@@ -14,6 +14,43 @@ import threading
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+_GPU_QUERY = "index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw"
+_GPU_CACHE = {"at": 0., "value": None}
+
+
+def gpu_status(refresh=1.0):
+    """NVIDIA GPU utilisation/memory snapshot; empty when no driver is present."""
+    if _GPU_CACHE["value"] is not None and time.monotonic() - _GPU_CACHE["at"] < refresh:
+        return _GPU_CACHE["value"]
+    now = time.monotonic()
+    try:
+        done = subprocess.run(["nvidia-smi", f"--query-gpu={_GPU_QUERY}", "--format=csv,noheader,nounits"],
+                              capture_output=True, text=True, timeout=3, check=False)
+    except (OSError, subprocess.SubprocessError):
+        done = None
+    gpus = []
+    if done is not None and done.returncode == 0:
+        for line in done.stdout.strip().splitlines():
+            parts = [part.strip() for part in line.split(",")]
+            if len(parts) < 6:
+                continue
+            try:
+                used, total = float(parts[3]), float(parts[4])
+                gpus.append(dict(index=int(parts[0]), name=parts[1], utilization=float(parts[2]),
+                                 memory_used_mib=used, memory_total_mib=total,
+                                 memory_used_ratio=(used/total if total else 0.),
+                                 temperature_c=float(parts[5]),
+                                 power_w=(float(parts[6]) if len(parts) > 6 and parts[6] not in
+                                          ("[N/A]", "N/A", "") else None)))
+            except ValueError:
+                continue
+    reason = None if gpus else ("未找到 nvidia-smi；非 NVIDIA 机器或驱动未安装" if done is None
+                                else "nvidia-smi 未返回 GPU（驱动或容器可见性受限）")
+    value = {"available": bool(gpus), "gpus": gpus, "reason": reason}
+    _GPU_CACHE.update(at=now, value=value)
+    return value
 from importlib.resources import files
 
 
@@ -484,6 +521,8 @@ def make_handler(manager, viewer=None):
                 elif url.path == "/api/log":
                     job_id = parse_qs(url.query).get("id", [""])[0]
                     self.reply(200, {"log": manager.log(job_id)})
+                elif url.path == "/api/gpu":
+                    self.reply(200, gpu_status())
                 elif url.path == "/api/viewer/checkpoints":
                     self.reply(200, {"checkpoints": viewer.checkpoints()})
                 elif url.path == "/api/viewer/status":

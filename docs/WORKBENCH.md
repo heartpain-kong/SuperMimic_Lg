@@ -71,6 +71,12 @@ SuperMimic_Lg/logs/workbench/<训练编号>/
 
 tracking runner 将 checkpoint 和 TensorBoard 文件写入工作目录的 `logs/rsl_rl/`。这两个日志目录不提交到 Git。网页会保留最近 30 条记录，表单参数保存在当前浏览器本地。
 
+## GPU 状态
+
+右栏顶部显示运行工作台这台机器的 NVIDIA 显卡：型号、GPU 占用率、显存已用/总量、温度和功耗，每 2 秒刷新一次。数据来自 `nvidia-smi --query-gpu=...`，取不到时显示原因（没有 NVIDIA 驱动，或容器里看不到设备），不会让页面报错。
+
+训练时用它判断规模是否合适：显存接近上限就下调并行环境数；`Warp CUDA error 2: out of memory` 之前通常能看到显存先被吃满。界面上的数字是整个 GPU 的占用，包含其他进程。
+
 ## SuperMimic 和 PPO
 
 SuperMimic 的策略优化通过可微世界模型中的短视野 rollout 做 BPTT，梯度从预测回报穿过动力学模型传到策略。PPO 则用采样轨迹估计优势，通过概率比值与裁剪目标更新策略。SuperMimic 使用 actor/critic 或 GAE，不代表它使用 PPO。

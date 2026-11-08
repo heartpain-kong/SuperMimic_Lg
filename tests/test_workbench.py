@@ -168,3 +168,21 @@ def test_http_origin_guard_and_ui(tmp_path):
         server.shutdown()
         server.server_close()
         manager.close()
+def test_gpu_status_reports_missing_driver_and_parses_nvidia_smi(monkeypatch):
+    monkeypatch.setattr(wb, "_GPU_CACHE", {"at": 0., "value": None})
+    monkeypatch.setattr(wb.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
+    missing = wb.gpu_status(refresh=0.)
+    assert missing["available"] is False and missing["gpus"] == [] and missing["reason"]
+
+    class Done:
+        returncode = 0
+        stdout = "0, NVIDIA GeForce RTX 4060 Laptop GPU, 87, 5120, 8188, 71, 62.5\n"
+    monkeypatch.setattr(wb, "_GPU_CACHE", {"at": 0., "value": None})
+    monkeypatch.setattr(wb.subprocess, "run", lambda *a, **k: Done())
+    found = wb.gpu_status(refresh=0.)
+    assert found["available"] is True and not found["reason"]
+    gpu = found["gpus"][0]
+    assert gpu["name"] == "NVIDIA GeForce RTX 4060 Laptop GPU"
+    assert gpu["utilization"] == 87. and gpu["memory_total_mib"] == 8188.
+    assert abs(gpu["memory_used_ratio"] - 5120/8188) < 1e-9
+    assert gpu["temperature_c"] == 71. and gpu["power_w"] == 62.5
