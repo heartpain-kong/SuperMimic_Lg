@@ -106,10 +106,15 @@ def build_command(data, root, run_dir):
                     spec = depth_spec(str(data.get("depth_size", "18x24") or "18x24"),
                                       float(data.get("depth_fov", 60) or 60),
                                       float(data.get("depth_range", 3) or 3),
-                                      int(data.get("depth_feat", 32) or 32))
+                                      int(data.get("depth_feat", 32) or 32),
+                                      noise=float(data.get("depth_noise", 0) or 0),
+                                      dropout=float(data.get("depth_dropout", 0) or 0),
+                                      latency=int(data.get("depth_latency", 0) or 0))
                     command += ["--depth", "--depth-size", f"{spec['height']}x{spec['width']}",
                                 "--depth-fov", str(spec["fov"]), "--depth-range", str(spec["range"]),
-                                "--depth-feat", str(spec["feat"])]
+                                "--depth-feat", str(spec["feat"]), "--depth-noise", str(spec["noise"]),
+                                "--depth-dropout", str(spec["dropout"]),
+                                "--depth-latency", str(spec["latency"])]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
                     ("history", "history", 3, 128),

@@ -9,7 +9,7 @@ from supermimic_lg.world_model import mlp
 from supermimic_lg.velocity_objective import objective_from, command_settings, sample_commands
 from supermimic_lg.simulator import resolve_robot_xml
 from supermimic_lg.state import heading_quat, quat_apply
-from supermimic_lg.depth import DepthEncoder, depth_spec
+from supermimic_lg.depth import DepthEncoder, DepthLagBuffer, corrupt_depth, depth_spec
 from supermimic_lg.velocity_physics import VelocitySimulator
 from supermimic_lg.velocity_task import (VelocityWorldModel, VelocityPolicy, VelocityReplay,
     FootKinematics, frame, phase_at, failure, velocity_error, reward, frame_dim, context_dim,
@@ -51,7 +51,9 @@ class VelocityTrainer:
             raise FileExistsError("choose a fresh output directory, or resume its checkpoint explicitly")
         self.output.mkdir(parents=True, exist_ok=True)
         self.xml = resolve_robot_xml(args.mjlab_root, args.robot_xml)
-        self.depth_spec = (depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat)
+        self.depth_spec = (depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat,
+                                      noise=args.depth_noise, dropout=args.depth_dropout,
+                                      latency=args.depth_latency)
                            if args.depth else None)
         self.depth_feature_dim = 0 if self.depth_spec is None else self.depth_spec["feat"]
         encoder = None if self.depth_spec is None else DepthEncoder(self.depth_spec).to(args.device)
@@ -116,6 +118,7 @@ class VelocityTrainer:
         self.history = torch.zeros(n, args.history, frame_dim(self.depth_feature_dim), device=d)
         self.depth_image = None
         self.depth_feature = None
+        self.depth_lag = None
         self.ep_error = torch.zeros(n, device=d)
         self.ep_progress = torch.zeros_like(self.ep_error)
         self.ep_target = torch.zeros_like(self.ep_error)
@@ -129,15 +132,18 @@ class VelocityTrainer:
 
     @torch.no_grad()
     def refresh_depth(self, ids=None):
-        """Recompute the depth image and its encoder features from the simulator."""
+        """Sense depth, apply the sensor model, then replay it with the configured delay."""
         if self.depth_spec is None:
             return
-        image = self.sim.depth()
-        feature = self.wm.encode_depth(image)
+        image = corrupt_depth(self.sim.depth(), self.depth_spec)
+        if self.depth_lag is None:
+            self.depth_lag = DepthLagBuffer(self.depth_spec["latency"], image)
+        observed = self.depth_lag.push(image, ids)
+        feature = self.wm.encode_depth(observed)
         if self.depth_image is None or ids is None:
-            self.depth_image, self.depth_feature = image, feature
+            self.depth_image, self.depth_feature = observed, feature
         else:
-            self.depth_image[ids] = image[ids]
+            self.depth_image[ids] = observed[ids]
             self.depth_feature[ids] = feature[ids]
 
     @torch.no_grad()

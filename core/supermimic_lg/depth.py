@@ -48,10 +48,50 @@ def depth_rays(height, width, fov, pitch=DEPTH_PITCH, offset=DEPTH_OFFSET, devic
     return origins, directions.reshape(-1, 3)
 
 
-def depth_spec(size="18x24", fov=60.0, range_m=3.0, feat=32, pitch=DEPTH_PITCH):
+def depth_spec(size="18x24", fov=60.0, range_m=3.0, feat=32, pitch=DEPTH_PITCH,
+               noise=0.0, dropout=0.0, latency=0):
     height, width = parse_depth_size(size)
+    if noise < 0 or not 0 <= dropout < 1 or latency < 0:
+        raise ValueError("depth noise/dropout/latency out of range")
     return dict(height=height, width=width, fov=float(fov), range=float(range_m),
-                feat=int(feat), pitch=float(pitch), pixels=height*width)
+                feat=int(feat), pitch=float(pitch), pixels=height*width,
+                noise=float(noise), dropout=float(dropout), latency=int(latency))
+
+
+def corrupt_depth(image, spec, generator=None):
+    """Stereo-like range error plus random invalid pixels.
+
+    ``noise`` is the coefficient of a quadratic range model (sigma = noise * z^2),
+    which matches how stereo depth error grows with distance. Dropped pixels read
+    as the maximum range, exactly like a returned "no reading".
+    """
+    noise, dropout = spec.get("noise", 0.), spec.get("dropout", 0.)
+    if not noise and not dropout:
+        return image
+    out = image
+    if noise:
+        sigma = noise*out.clamp_min(1e-3).square()
+        out = out + sigma*torch.randn(out.shape, device=out.device, generator=generator)
+    if dropout:
+        lost = torch.rand(out.shape, device=out.device, generator=generator) < dropout
+        out = torch.where(lost, torch.full_like(out, spec["range"]), out)
+    return out.clamp(0., spec["range"])
+
+
+class DepthLagBuffer:
+    """Delays the sensed depth by a fixed number of control steps."""
+
+    def __init__(self, latency, like):
+        self.latency = int(latency)
+        self.slots = [like.clone() for _ in range(self.latency+1)]
+
+    def push(self, image, ids=None):
+        if ids is None:
+            self.slots = self.slots[1:] + [image.clone()] if self.latency else [image.clone()]
+        else:
+            for slot in self.slots:
+                slot[ids] = image[ids]
+        return self.slots[0]
 
 
 class DepthEncoder(nn.Module):

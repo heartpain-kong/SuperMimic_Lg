@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from supermimic_lg.depth import DepthEncoder, depth_rays, depth_spec, parse_depth_size
+from supermimic_lg.depth import (DepthEncoder, DepthLagBuffer, corrupt_depth, depth_rays,
+                                 depth_spec, parse_depth_size)
 from supermimic_lg.velocity_task import (VelocityPolicy, VelocityWorldModel, VelocityReplay,
                                          frame, context_dim, frame_dim, CONTEXT_DIM)
 
@@ -37,6 +38,30 @@ def test_depth_encoder_maps_metres_to_bounded_features():
     assert features.abs().max() <= 1.
     # Unclipped/zero input stays finite.
     assert torch.isfinite(encoder(torch.zeros(2, 12, 16))).all()
+
+
+def test_depth_corruption_matches_a_stereo_sensor_model():
+    spec = depth_spec("8x10", range_m=3., feat=4, noise=.02, dropout=.25)
+    image = torch.full((2, 8, 10), 1.5)
+    torch.manual_seed(0)
+    noisy = corrupt_depth(image, spec)
+    assert noisy.shape == image.shape
+    assert (noisy >= 0).all() and (noisy <= 3).all()
+    assert not torch.allclose(noisy, image)
+    # Dropped pixels read as "no reading", i.e. the configured maximum range.
+    assert (noisy == 3.).float().mean() > .05
+    clean = depth_spec("8x10", feat=4)
+    torch.testing.assert_close(corrupt_depth(image, clean), image)
+    with pytest.raises(ValueError):
+        depth_spec("8x10", noise=-1.)
+
+
+def test_depth_lag_buffer_delays_by_configured_steps():
+    lag = DepthLagBuffer(2, torch.zeros(1, 2, 2))
+    seen = [float(lag.push(torch.full((1, 2, 2), float(step))).mean()) for step in range(5)]
+    assert seen == [0., 0., 0., 1., 2.]
+    immediate = DepthLagBuffer(0, torch.zeros(1, 2, 2))
+    assert float(immediate.push(torch.full((1, 2, 2), 7.)).mean()) == 7.
 
 
 def test_world_model_conditions_on_depth_and_trains_the_encoder():
@@ -87,10 +112,12 @@ def test_reference_free_training_with_depth_on_real_physics(tmp_path):
               "--policy-updates", "1", "--warmup-iterations", "1", "--batch-size", "4",
               "--network-size", "16", "--horizon", "2", "--wm-horizon", "2", "--episode-steps", "4",
               "--command-mode", "fixed", "--standing-fraction", "0", "--depth",
-              "--depth-size", "8x10", "--depth-feat", "6"]
+              "--depth-size", "8x10", "--depth-feat", "6",
+              "--depth-noise", "0.01", "--depth-dropout", "0.05", "--depth-latency", "1"]
     args = parser().parse_args(common + ["--output-dir", str(tmp_path/"depth")])
     trainer = VelocityTrainer(args)
     assert trainer.depth_spec["pixels"] == 80 and trainer.depth_feature_dim == 6
+    assert trainer.depth_spec["noise"] == .01 and trainer.depth_spec["latency"] == 1
     image = trainer.sim.depth()
     assert image.shape == (2, 8, 10) and torch.isfinite(image).all()
     # A downward camera on flat ground must see the floor closer than max range.

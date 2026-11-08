@@ -13,7 +13,9 @@ def _depth_profile(args):
     if not getattr(args, "depth", False):
         return None
     from .depth import depth_spec
-    return depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat)
+    return depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat,
+                      noise=getattr(args, "depth_noise", 0.), dropout=getattr(args, "depth_dropout", 0.),
+                      latency=getattr(args, "depth_latency", 0))
 
 
 def _depth_feat(args):

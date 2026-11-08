@@ -261,6 +261,10 @@ def parser():
     p.add_argument("--depth-fov", type=float, default=60., help="vertical field of view, degrees")
     p.add_argument("--depth-range", type=float, default=3., help="maximum sensed distance, metres")
     p.add_argument("--depth-feat", type=int, default=32, help="depth encoder output dimension")
+    p.add_argument("--depth-noise", type=float, default=0.,
+                   help="quadratic range noise coefficient, sigma = noise * z^2 (metres)")
+    p.add_argument("--depth-dropout", type=float, default=0., help="fraction of invalid depth pixels")
+    p.add_argument("--depth-latency", type=int, default=0, help="depth sensor delay in control steps")
     p.add_argument("--output-dir", type=Path, default=Path("logs/supermimic_lgdog"))
     p.add_argument("--resume", type=Path)
     p.add_argument("--init-policy", type=Path, help="velocity only: transfer actor weights, restart world model/critic/counters")
@@ -290,7 +294,8 @@ def main():
             p.error("--depth is available in velocity mode; tracking uses reference motions")
         from supermimic_lg.depth import depth_spec
         try:
-            depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat)
+            depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat,
+                       noise=args.depth_noise, dropout=args.depth_dropout, latency=args.depth_latency)
         except (ValueError, TypeError) as exc:
             p.error(str(exc))
     if args.task == "tracking" and args.terrain not in ("flat", "rough"):
