@@ -101,6 +101,15 @@ def build_command(data, root, run_dir):
                     command += ['--'+key.replace('_', '-'), str(value)]
                 for key, value in objective.as_dict().items():
                     command += ['--'+key.replace('_', '-'), str(value)]
+                if str(data.get("depth", "")).lower() in ("1", "true", "on", "yes"):
+                    from .depth import depth_spec
+                    spec = depth_spec(str(data.get("depth_size", "18x24") or "18x24"),
+                                      float(data.get("depth_fov", 60) or 60),
+                                      float(data.get("depth_range", 3) or 3),
+                                      int(data.get("depth_feat", 32) or 32))
+                    command += ["--depth", "--depth-size", f"{spec['height']}x{spec['width']}",
+                                "--depth-fov", str(spec["fov"]), "--depth-range", str(spec["range"]),
+                                "--depth-feat", str(spec["feat"])]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
                     ("history", "history", 3, 128),

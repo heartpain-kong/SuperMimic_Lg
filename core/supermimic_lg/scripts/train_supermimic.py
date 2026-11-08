@@ -255,6 +255,12 @@ def parser():
         p.add_argument("--" + name, type=int, default=default)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--action-noise", type=float, default=.1)
+    p.add_argument("--depth", action="store_true",
+                   help="velocity only: add an egocentric pinhole depth camera to the actor and world model")
+    p.add_argument("--depth-size", default="18x24", help="depth image height x width in rays")
+    p.add_argument("--depth-fov", type=float, default=60., help="vertical field of view, degrees")
+    p.add_argument("--depth-range", type=float, default=3., help="maximum sensed distance, metres")
+    p.add_argument("--depth-feat", type=int, default=32, help="depth encoder output dimension")
     p.add_argument("--output-dir", type=Path, default=Path("logs/supermimic_lgdog"))
     p.add_argument("--resume", type=Path)
     p.add_argument("--init-policy", type=Path, help="velocity only: transfer actor weights, restart world model/critic/counters")
@@ -279,6 +285,14 @@ def main():
         p.error("--motion-file is required for --task tracking; velocity needs no motion file")
     if args.init_policy and (args.task != "velocity" or args.resume):
         p.error("--init-policy is velocity-only and mutually exclusive with --resume")
+    if args.depth:
+        if args.task != "velocity":
+            p.error("--depth is available in velocity mode; tracking uses reference motions")
+        from supermimic_lg.depth import depth_spec
+        try:
+            depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat)
+        except (ValueError, TypeError) as exc:
+            p.error(str(exc))
     if args.task == "tracking" and args.terrain not in ("flat", "rough"):
         p.error("tracking supports flat/rough; named terrain families are available in velocity mode")
     if args.task == "tracking" and args.terrain == "rough" and args.backend != "mjlab":

@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from .config import lgdog1_spec
+from .depth import depth_rays
 from .simulator import load_lgdog_model, joint_addresses
 from .state import heading_quat
 
@@ -43,7 +44,7 @@ def scene_config(root, terrain, n, seed, device, sensors):
                     terrain=terrain_cfg, sensors=sensors)
 
 
-def velocity_sensors():
+def velocity_sensors(depth=None):
     from mjlab.sensor import GridPatternCfg, ObjRef, RayCastSensorCfg, ContactSensorCfg, ContactMatch
 
     @dataclass
@@ -56,15 +57,32 @@ def velocity_sensors():
             d = torch.zeros_like(p); d[:, 2] = -1.
             return p, d
 
+    @dataclass
+    class DepthPattern(GridPatternCfg):
+        height: int = 18
+        width: int = 24
+        fov: float = 60.
+        pitch: float = 30.
+
+        def generate_rays(self, mj_model, device):
+            return depth_rays(self.height, self.width, self.fov, self.pitch, device=device)
+
     scan = RayCastSensorCfg(name="velocity_ground", frame=ObjRef(type="body", name="trunk", entity="robot"),
             pattern=HighGrid(size=(2., 2.), resolution=SPACING), ray_alignment="yaw",
             include_geom_groups=(0,), max_distance=10., debug_vis=False)
+    sensors = [scan]
+    if depth is not None:
+        sensors.append(RayCastSensorCfg(name="velocity_depth",
+            frame=ObjRef(type="body", name="trunk", entity="robot"),
+            pattern=DepthPattern(height=depth["height"], width=depth["width"], fov=depth["fov"],
+                                 pitch=depth["pitch"]),
+            ray_alignment="yaw", include_geom_groups=(0,), max_distance=depth["range"], debug_vis=False))
     contacts = tuple(ContactSensorCfg(name=f"velocity_contact_{i}",
         primary=ContactMatch(mode="geom", pattern=name, entity="robot"),
         secondary=ContactMatch(mode="body", pattern="terrain"), fields=("found", "force"),
         reduce="netforce", num_slots=1)
         for i, name in enumerate([f"{leg}_calf1_collision" for leg in ("FR", "FL", "RR", "RL")] + ["trunk_collision"]))
-    return (scan, *contacts)
+    return (*sensors, *contacts)
 
 
 class VelocitySimulator:
@@ -74,13 +92,15 @@ class VelocitySimulator:
     are privileged world-model inputs; the deployed actor receives only HIM's
     47-feature proprioception/command frame.
     """
-    def __init__(self, xml, root, n, backend, device, terrain="flat", seed=42, level=None, visuals=False):
+    def __init__(self, xml, root, n, backend, device, terrain="flat", seed=42, level=None,
+                 visuals=False, depth=None):
         import mujoco
         if terrain not in TERRAINS or backend not in ("mujoco", "mjlab"):
             raise ValueError("unsupported velocity physics configuration")
         if backend == "mjlab" and not str(device).startswith("cuda:"):
             raise ValueError("mjlab requires CUDA")
         self.n, self.backend, self.device, self.terrain = n, backend, device, terrain
+        self.depth_cfg = depth
         self.scene = None
         self.rng = np.random.default_rng(seed)
         if backend == "mujoco" and terrain == "flat":
@@ -93,7 +113,7 @@ class VelocitySimulator:
                 raise ValueError("native terrain scene XML differs from the requested robot XML")
             sensors = ()
             if backend == "mjlab":
-                sensors = velocity_sensors()
+                sensors = velocity_sensors(depth)
             self.scene = Scene(scene_config(root, terrain, n, seed, device, sensors), device=device)
             self.origins = self.scene.env_origins
             if level is not None and terrain != "flat":
@@ -213,6 +233,35 @@ class VelocitySimulator:
             heights = torch.tensor(np.array(grids), dtype=torch.float32, device=self.device)
             valid = torch.isfinite(heights)
         return pack_observation(physical,found,heights,valid)
+
+    def depth(self):
+        """Egocentric depth image ``[N, height, width]`` in metres, or None."""
+        if self.depth_cfg is None:
+            return None
+        import mujoco
+        cfg = self.depth_cfg
+        if self.backend == "mjlab":
+            distances = self.scene["velocity_depth"].data.distances
+            image = torch.where(distances >= 0, distances, torch.full_like(distances, cfg["range"]))
+            return image.reshape(self.n, cfg["height"], cfg["width"])
+        local_origin, local_directions = depth_rays(cfg["height"], cfg["width"], cfg["fov"],
+                                                    cfg["pitch"], device="cpu")
+        directions = local_directions.numpy().astype(np.float64)
+        mount = local_origin[0].numpy()
+        image = np.full((len(self.data), len(directions)), cfg["range"], np.float32)
+        for i, d in enumerate(self.data):
+            w, x, y, z = d.qpos[3:7]
+            yaw = np.arctan2(2*(w*z+x*y), 1-2*(y*y+z*z))
+            c, s = np.cos(yaw), np.sin(yaw)
+            rot = np.array([[c, -s], [s, c]])
+            point = np.array([*(rot@mount[:2] + d.qpos[:2]), d.qpos[2]+mount[2]])
+            vectors = directions.copy(); vectors[:, :2] = directions[:, :2]@rot.T
+            for j, direction in enumerate(vectors):
+                distance = mujoco.mj_ray(self.model, d, point, direction, self.geom_groups, 1, -1,
+                                         np.array([-1], np.int32))
+                if distance >= 0:
+                    image[i, j] = min(distance, cfg["range"])
+        return torch.from_numpy(image).to(self.device).reshape(len(self.data), cfg["height"], cfg["width"])
 
     def curriculum(self, ids, up, down):
         if self.scene is not None and self.terrain != "flat":

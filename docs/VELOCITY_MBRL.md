@@ -30,6 +30,40 @@ python -m supermimic_lg.scripts.train_supermimic \
 
 默认 `--command-mode random`：三项指令是正负对称上限，单位分别为 m/s、m/s、rad/s。每 5 秒重采样，`--standing-fraction 0.1` 表示约 10% 为站立指令。`--command-mode fixed` 则把三项值作为固定指令，可以填写负值；需要一直运动时设置 `--standing-fraction 0`。actor 输出 12 个限幅关节动作，动作缩放 0.25。默认采用原生 HIM 的物理步长 0.005 s、4 个子步，控制周期 0.02 s。
 
+## 深度感知（可选）
+
+默认策略是**盲的**：只用本体感觉、速度指令和步态相位，地形高度图只喂给世界模型和 critic。加 `--depth` 后，LgDog 在躯干前上方（前 0.16 m、上 0.05 m）挂一台朝下 30° 的针孔深度相机，射线按 `--depth-size` 排成图像，`--depth-fov` 为垂直视场，`--depth-range` 为最大感知距离（超出的像素记为该值）。
+
+三类数据的形状变化：
+
+| 数据 | 关闭深度 | 开启深度（feat=32） |
+|---|---|---|
+| actor 每帧观测 | 47 | 47 + 32 = 79 |
+| 世界模型上下文 | 85（地形补丁） | 85 + 32 = 117 |
+| 回放中的深度 | 不存 | `[envs, H×W]`，float16 |
+
+深度由一个小型卷积编码器压成 `--depth-feat` 维向量：它同时进入 actor 的帧和世界模型的上下文，编码器参数属于世界模型，**只由世界模型损失训练**（actor 拿到的是它的输出，BPTT 不会反传到编码器）。想象轨迹里不会重新渲染深度：整段 rollout 复用最后一个真实帧的深度特征，因为世界模型没有深度解码头，机器人短时间内脚下的地形也不变。
+
+命令行：
+
+```bash
+python -m supermimic_lg.scripts.train_supermimic \
+  --task velocity --mjlab-root /home/heartpain/mjlab/unitree_rl_mjlab_lgdog \
+  --backend mjlab --device cuda:0 --terrain flat \
+  --num-envs 256 --iterations 100 --history 3 \
+  --depth --depth-size 18x24 --depth-fov 60 --depth-range 3 --depth-feat 32 \
+  --output-dir logs/velocity_depth
+```
+
+工作台在“LgDog · 速度指令运控”里勾选**启用前向深度相机**即可，分辨率、视场、距离和编码维度都可填。
+
+代价与限制：
+
+- 射线数 = `num_envs × height × width`。1024 环境 × 18×24 = 44 万条射线，在 8 GiB 上要相应下调环境数；分辨率翻倍，射线数翻四倍。
+- 原生 MuJoCo 后端逐条调用 `mj_ray`，只适合小规模验证；大规模请用 mjlab GPU 后端。
+- 训练与想象都假设相机外参固定、无噪声、无延迟，**尚未做 sim2real 的噪声与延迟建模**；真机部署前必须补上。
+- 深度改变了策略输入维度，旧检查点会因 `metadata` 不一致被拒绝，需重新训练。
+
 ## 显存与规模
 
 回放缓存按 `replay_capacity × num_envs × (状态 42 + 下一状态 42 + 地形上下文 85 + 历史 4×47 + 动作 12 + 上一动作 12 + 指令 3 + 相位 2 + 2)` 分配，全部常驻显存，因此它随环境数线性增长；BPTT 峰值主要由 `batch_size × horizon` 决定。8 GiB 显卡（例如 RTX 4060 Laptop）上的参考起点：

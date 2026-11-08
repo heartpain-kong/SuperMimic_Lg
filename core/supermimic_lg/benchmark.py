@@ -41,14 +41,30 @@ class CheckpointActor:
         if self.metadata["xml_sha256"] != digest(xml):
             raise ValueError("benchmark robot XML differs from checkpoint")
         self.history = self.metadata["history"]
-        self.policy = VelocityPolicy(self.history, self.metadata["network_size"]).to(device).eval()
+        self.depth = self.metadata.get("depth")
+        self.depth_feat = 0 if not self.depth else int(self.depth["feat"])
+        self.policy = VelocityPolicy(self.history, self.metadata["network_size"], self.depth_feat).to(device).eval()
         self.policy.load_state_dict(ck["policy"])
+        self.encoder = None
+        if self.depth:
+            from .depth import DepthEncoder
+            from .velocity_task import VelocityWorldModel
+            world = VelocityWorldModel(self.metadata["network_size"], DepthEncoder(self.depth))
+            world.load_state_dict(ck["wm"])
+            self.encoder = world.encoder.to(device).eval()
         self.training_seconds = ck.get("training_seconds")
         self.iteration = ck["iteration"]
 
     def __call__(self, obs):
         with torch.inference_mode():
             return self.policy(obs)
+
+    def encode(self, sim):
+        """Depth features for this actor's history shape, or None without depth."""
+        if self.encoder is None:
+            return None
+        with torch.inference_mode():
+            return self.encoder(sim.depth())
 
 
 class HIMActor:
@@ -95,7 +111,8 @@ def evaluate_actor(actor, sim, seeds, seconds):
             command[:] = command.new_tensor([.6, 0., 0.] if step < 200 else ([.4,.15,0.] if step < 350 else [.4,-.15,.2]))
             state, context = sim.observe()
             phase = phase_at(torch.tensor([step], device=sim.device))
-            obs = frame(state, previous, command, phase)
+            depth_feature = actor.encode(sim) if hasattr(actor, "encode") else None
+            obs = frame(state, previous, command, phase, depth_feature)
             history = obs[:,None].repeat(1,actor.history,1) if history is None else torch.cat((history[:,1:],obs[:,None]),1)
             action = actor(history).clamp(-1.,1.)
             if action.shape != (1,12) or not torch.isfinite(action).all():
@@ -133,7 +150,8 @@ def paired_benchmark(xml, root, checkpoint, him_onnx, output, *, terrain="flat",
     matched = actors["supermimic"].history == actors["him_ppo"].history
     if not matched and not allow_history_mismatch:
         raise ValueError("history lengths differ: train velocity --history to match HIM, or explicitly allow/report mismatch")
-    sim = VelocitySimulator(xml,root,1,backend,device,terrain,seed=0,level=level)
+    sim = VelocitySimulator(xml,root,1,backend,device,terrain,seed=0,level=level,
+                            depth=actors["supermimic"].depth)
     try:
         physics_hash = hashlib.sha256()
         for key in ("body_mass","body_inertia","geom_type","geom_pos","geom_size","geom_friction",
@@ -141,7 +159,9 @@ def paired_benchmark(xml, root, checkpoint, him_onnx, output, *, terrain="flat",
             physics_hash.update(np.asarray(getattr(sim.model,key)).tobytes())
         protocol = dict(version=1, task="lgdog_velocity_v1", terrain=terrain, level=level, seeds=list(seeds),
             seconds=seconds, backend=backend, device=device, control_dt=.02, physics_dt=.005,
-            xml_sha256=digest(xml), physics_sha256=physics_hash.hexdigest(), actor_sensing="blind_47",
+            xml_sha256=digest(xml), physics_sha256=physics_hash.hexdigest(),
+            actor_sensing=("depth_%d_over_47"%actors["supermimic"].depth_feat
+                           if actors["supermimic"].depth else "blind_47"),
             spawn_origin=sim.origins[0].cpu().tolist(),
             command_schedule=[[0,.6,0.,0.],[200,.4,.15,0.],[350,.4,-.15,.2]],
             success="full episode, no failure, aligned progress >=2m and >=70% of commanded distance, XY error <0.8m/s",

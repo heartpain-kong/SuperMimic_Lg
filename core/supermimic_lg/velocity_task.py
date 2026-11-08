@@ -14,6 +14,16 @@ CONTEXT_DIM = 4 + GRID*GRID
 FRAME_DIM = 47
 
 
+def context_dim(depth_feat=0):
+    """World-model context length: terrain patch plus optional depth features."""
+    return CONTEXT_DIM + int(depth_feat)
+
+
+def frame_dim(depth_feat=0):
+    """Actor frame length: proprioception, command, phase plus optional depth."""
+    return FRAME_DIM + int(depth_feat)
+
+
 def sample_ground(context, xy):
     """Bilinear patch lookup with gradients in the predicted world position.
 
@@ -27,7 +37,7 @@ def sample_ground(context, xy):
     local = torch.stack((c*x+s*y, -s*x+c*y), -1)
     # grid_sample expects columns then rows, thus swap Y/X.
     grid = local[..., [1, 0]].unsqueeze(1)
-    value = F.grid_sample(context[:, 4:].reshape(-1, 1, GRID, GRID), grid,
+    value = F.grid_sample(context[:, 4:4+GRID*GRID].reshape(-1, 1, GRID, GRID), grid,
                           mode="bilinear", padding_mode="border", align_corners=True)
     return value[:, 0, 0].reshape((len(context),) + point_shape)
 
@@ -47,11 +57,12 @@ def geometry(state, context):
     return clearance, scan
 
 
-def frame(state, previous_action, command, phase):
+def frame(state, previous_action, command, phase, depth=None):
     gravity = quat_apply_inverse(state[:, 3:7], state.new_tensor([0., 0., -1.]).expand(len(state), 3))
-    return torch.cat((state[:, 22:25], gravity, command, phase,
+    features = torch.cat((state[:, 22:25], gravity, command, phase,
                       state[:, 7:19] - state.new_tensor(lgdog1_spec().default_joint_pos),
                       state[:, 25:37], previous_action), -1)
+    return features if depth is None else torch.cat((features, depth), -1)
 
 
 def phase_at(steps):
@@ -72,25 +83,35 @@ def velocity_error(state, command):
 
 
 class VelocityPolicy(nn.Module):
-    def __init__(self, history=3, width=128):
+    def __init__(self, history=3, width=128, depth_feat=0):
         super().__init__()
-        self.history, self.width = history, width
-        self.net = mlp(history*FRAME_DIM, (width, width), 12)
+        self.history, self.width, self.depth_feat = history, width, int(depth_feat)
+        self.net = mlp(history*frame_dim(depth_feat), (width, width), 12)
 
     def forward(self, history):
         return self.net(history.flatten(1)).tanh()
 
 
 class VelocityWorldModel(nn.Module):
-    def __init__(self, width=128):
+    def __init__(self, width=128, depth_encoder=None):
         super().__init__()
         self.spec = QuadrupedStateSpec(12)
-        self.dynamics = mlp(37+5+1+GRID*GRID+12, (width,)*3, self.spec.delta_dim, zero_last=True)
-        self.contacts = mlp(37+5+1+GRID*GRID+12, (width, width), 5)
+        self.encoder = depth_encoder
+        self.depth_feat = 0 if depth_encoder is None else int(depth_encoder.spec["feat"])
+        inputs = 37+5+1+GRID*GRID+self.depth_feat+12
+        self.dynamics = mlp(inputs, (width,)*3, self.spec.delta_dim, zero_last=True)
+        self.contacts = mlp(inputs, (width, width), 5)
         nn.init.constant_(self.contacts[-1].bias, -3.)
 
+    def encode_depth(self, depth):
+        """``[N, H, W]`` metres to ``[N, feat]``; None when depth is disabled."""
+        return None if self.encoder is None else self.encoder(depth)
+
     def features(self, state, context):
-        return state_features(state, context, self.spec)
+        features = state_features(state, context, self.spec)
+        if self.depth_feat:
+            features = torch.cat((features, context[:, CONTEXT_DIM:]), -1)
+        return features
 
     def step(self, state, action, context):
         features = torch.cat((self.features(state, context), action), -1)
@@ -170,11 +191,15 @@ def reward(state, action, previous, command, phase, context, feet, objective=Non
 
 
 class VelocityReplay:
-    def __init__(self, capacity, n, history, device):
+    def __init__(self, capacity, n, history, device, frame=FRAME_DIM, depth_pixels=0):
         self.capacity, self.n, self.count = capacity, n, 0
-        dims = dict(state=(42,), next=(42,), context=(CONTEXT_DIM,), history=(history, 47),
+        dims = dict(state=(42,), next=(42,), context=(CONTEXT_DIM,), history=(history, frame),
                     action=(12,), previous=(12,), command=(3,), phase=(2,), terminal=(), reset=())
-        self.rows = {k: torch.zeros(capacity, n, *shape, device=device) for k, shape in dims.items()}
+        if depth_pixels:
+            dims["depth"] = (depth_pixels,)
+        self.rows = {k: torch.zeros(capacity, n, *shape,
+                                    dtype=torch.float16 if k == "depth" else torch.float32,
+                                    device=device) for k, shape in dims.items()}
 
     def add(self, **data):
         for key, value in data.items():

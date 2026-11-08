@@ -9,9 +9,11 @@ from supermimic_lg.world_model import mlp
 from supermimic_lg.velocity_objective import objective_from, command_settings, sample_commands
 from supermimic_lg.simulator import resolve_robot_xml
 from supermimic_lg.state import heading_quat, quat_apply
+from supermimic_lg.depth import DepthEncoder, depth_spec
 from supermimic_lg.velocity_physics import VelocitySimulator
 from supermimic_lg.velocity_task import (VelocityWorldModel, VelocityPolicy, VelocityReplay,
-    FootKinematics, frame, phase_at, failure, velocity_error, reward, FRAME_DIM, CONTEXT_DIM)
+    FootKinematics, frame, phase_at, failure, velocity_error, reward, frame_dim, context_dim,
+    FRAME_DIM, CONTEXT_DIM)
 
 
 def oom_hint(error, args, free_gib=None):
@@ -49,9 +51,13 @@ class VelocityTrainer:
             raise FileExistsError("choose a fresh output directory, or resume its checkpoint explicitly")
         self.output.mkdir(parents=True, exist_ok=True)
         self.xml = resolve_robot_xml(args.mjlab_root, args.robot_xml)
-        self.wm = VelocityWorldModel(args.network_size).to(args.device)
-        self.policy = VelocityPolicy(args.history, args.network_size).to(args.device)
-        self.critic = mlp(37+5+1+81+5, (args.network_size, args.network_size), 1).to(args.device)
+        self.depth_spec = (depth_spec(args.depth_size, args.depth_fov, args.depth_range, args.depth_feat)
+                           if args.depth else None)
+        self.depth_feature_dim = 0 if self.depth_spec is None else self.depth_spec["feat"]
+        encoder = None if self.depth_spec is None else DepthEncoder(self.depth_spec).to(args.device)
+        self.wm = VelocityWorldModel(args.network_size, encoder).to(args.device)
+        self.policy = VelocityPolicy(args.history, args.network_size, self.depth_feature_dim).to(args.device)
+        self.critic = mlp(37+5+1+81+self.depth_feature_dim+5, (args.network_size, args.network_size), 1).to(args.device)
         self.optimizers = [torch.optim.AdamW(m.parameters(), lr=lr)
                            for m, lr in ((self.wm, 3e-4), (self.policy, 2e-4), (self.critic, 2e-4))]
         self.iteration = self.transitions = self.elapsed_before = 0
@@ -60,9 +66,12 @@ class VelocityTrainer:
         self.metadata = dict(task="velocity", version=1, xml_sha256=file_hash(self.xml),
             learning_precision="tf32" if args.backend=='mjlab' else "torch_default",
             task_contract_sha256=self.task_contract_sha,
-            history=args.history, frame_dim=FRAME_DIM, network_size=args.network_size,
-            terrain=args.terrain, context_dim=CONTEXT_DIM, state_dim=42, dt=.02, physics_dt=.005,
-            actor_sensing="blind_proprioception_command_phase", terrain_grid=[9, 9, .25],
+            history=args.history, frame_dim=frame_dim(self.depth_feature_dim), network_size=args.network_size,
+            terrain=args.terrain, context_dim=context_dim(self.depth_feature_dim), state_dim=42, dt=.02,
+            physics_dt=.005, depth=self.depth_spec,
+            actor_sensing=("proprioception_command_phase_depth" if self.depth_spec is not None
+                           else "blind_proprioception_command_phase"),
+            terrain_grid=[9, 9, .25],
             objective=self.objective.as_dict(), command_config=self.command_config,
             failure=dict(min_clearance=.14, max_clearance=.65, min_up=.5, trunk_contact=True))
         if args.init_policy:
@@ -90,9 +99,11 @@ class VelocityTrainer:
         if not args.resume:
             torch.manual_seed(args.seed)  # Isolate terrain initialization from network parameter draws.
         self.sim = VelocitySimulator(self.xml, args.mjlab_root, args.num_envs, args.backend,
-                                     args.device, args.terrain, args.seed)
+                                     args.device, args.terrain, args.seed, depth=self.depth_spec)
         self.feet = FootKinematics(self.xml, args.device)
-        self.replay = VelocityReplay(args.replay_capacity, args.num_envs, args.history, args.device)
+        self.replay = VelocityReplay(args.replay_capacity, args.num_envs, args.history, args.device,
+                                     frame=frame_dim(self.depth_feature_dim),
+                                     depth_pixels=0 if self.depth_spec is None else self.depth_spec["pixels"])
         if str(args.device).startswith("cuda"):
             free, total = torch.cuda.mem_get_info()
             self.device_memory = dict(device=str(args.device), free_gib=round(free/2**30, 2),
@@ -102,7 +113,9 @@ class VelocityTrainer:
         self.steps = torch.zeros(n, dtype=torch.long, device=d)
         self.command = torch.zeros(n, 3, device=d)
         self.previous = torch.zeros(n, 12, device=d)
-        self.history = torch.zeros(n, args.history, 47, device=d)
+        self.history = torch.zeros(n, args.history, frame_dim(self.depth_feature_dim), device=d)
+        self.depth_image = None
+        self.depth_feature = None
         self.ep_error = torch.zeros(n, device=d)
         self.ep_progress = torch.zeros_like(self.ep_error)
         self.ep_target = torch.zeros_like(self.ep_error)
@@ -115,6 +128,19 @@ class VelocityTrainer:
         self.command[ids] = sample_commands(self.args, len(ids), self.args.device)
 
     @torch.no_grad()
+    def refresh_depth(self, ids=None):
+        """Recompute the depth image and its encoder features from the simulator."""
+        if self.depth_spec is None:
+            return
+        image = self.sim.depth()
+        feature = self.wm.encode_depth(image)
+        if self.depth_image is None or ids is None:
+            self.depth_image, self.depth_feature = image, feature
+        else:
+            self.depth_image[ids] = image[ids]
+            self.depth_feature[ids] = feature[ids]
+
+    @torch.no_grad()
     def reset(self, ids, physics=True):
         if not len(ids):
             return
@@ -124,7 +150,9 @@ class VelocityTrainer:
         self.steps[ids], self.previous[ids] = 0, 0.
         self.ep_error[ids], self.ep_progress[ids], self.ep_target[ids] = 0., 0., 0.
         state, _ = self.sim.observe()
-        obs = frame(state[ids], self.previous[ids], self.command[ids], phase_at(self.steps[ids]))
+        self.refresh_depth(ids)
+        obs = frame(state[ids], self.previous[ids], self.command[ids], phase_at(self.steps[ids]),
+                    None if self.depth_feature is None else self.depth_feature[ids])
         obs[:, 9:11] *= (self.command[ids].norm(dim=-1) >= .1)[:, None]
         self.history[ids] = obs[:, None].expand(-1, self.args.history, -1)
 
@@ -135,13 +163,19 @@ class VelocityTrainer:
         completed = promotions = demotions = 0
         lengths = []
         for _ in range(self.args.collect_steps):
-            state, context = self.sim.observe()
+            state, base_context = self.sim.observe()
+            self.refresh_depth()
+            context = (base_context if self.depth_feature is None
+                       else torch.cat((base_context, self.depth_feature), -1))
             action = self.policy(self.history)
             executed = (action+self.args.action_noise*torch.randn_like(action)).clamp(-1., 1.)
             phase = phase_at(self.steps)
             phase *= (self.command.norm(dim=-1) >= .1)[:, None]
             self.sim.step(executed)
             next_state, next_context = self.sim.observe()
+            self.refresh_depth()
+            if self.depth_feature is not None:
+                next_context = torch.cat((next_context, self.depth_feature), -1)
             predicted = self.wm.step(state, executed, context)
             prediction_error = self.wm.spec.normalized_sq_error(predicted[:, :37], next_state[:, :37])
             contact_error = F.binary_cross_entropy(predicted[:, 37:].clamp(1e-6,1-1e-6),
@@ -160,9 +194,12 @@ class VelocityTrainer:
             self.ep_progress += ((next_state[:, :2]-state[:, :2])*world_command/speed.clamp_min(1e-6)[:, None]).sum(-1)
             self.ep_target += speed*.02
             self.ep_error += xy
-            self.replay.add(state=state, next=next_state, context=context, history=self.history,
+            stored = dict(state=state, next=next_state, context=base_context, history=self.history,
                 action=executed, previous=self.previous, command=self.command, phase=phase,
                 terminal=failed.float(), reset=reset.float())
+            if self.depth_image is not None:
+                stored["depth"] = self.depth_image.reshape(len(self.depth_image), -1)
+            self.replay.add(**stored)
             self.transitions += self.args.num_envs
             self.previous = executed
             ids = reset.nonzero().flatten()
@@ -182,7 +219,7 @@ class VelocityTrainer:
             self.sample_commands(change)
             new_phase = phase_at(self.steps)
             new_phase *= (self.command.norm(dim=-1) >= .1)[:, None]
-            obs = frame(next_state, self.previous, self.command, new_phase)
+            obs = frame(next_state, self.previous, self.command, new_phase, self.depth_feature)
             self.history = torch.cat((self.history[:, 1:], obs[:, None]), 1)
             totals += torch.stack((r.sum(), xy.sum(), yaw.sum(), failed.sum(), prediction_error.sum(), contact_error.sum()))
             self.reset(ids)
@@ -193,10 +230,20 @@ class VelocityTrainer:
             episode_length=sum(lengths)/max(1,len(lengths)), terrain_promotions=promotions, terrain_demotions=demotions,
             **{'reward/'+k:float(v/denominator) for k,v in component_totals.items()})
 
+    def replay_depth(self, rows):
+        """Depth images ``[batch, H, W]`` from flattened replay rows."""
+        if "depth" not in rows:
+            return None
+        spec = self.depth_spec
+        return rows["depth"][0].float().reshape(-1, spec["height"], spec["width"])
+
     def update_wm(self):
         a = self.args
         rows = self.replay.sample(a.batch_size, a.wm_horizon)
         state, context = rows["state"][0], rows["context"][0]
+        depth = self.replay_depth(rows)
+        if depth is not None:
+            context = torch.cat((context, self.wm.encode_depth(depth)), -1)
         errors, contacts = [], []
         for t in range(a.wm_horizon):
             state = self.wm.step(state, rows["action"][t], context)
@@ -226,7 +273,14 @@ class VelocityTrainer:
     def update_policy(self):
         rows = self.replay.sample(self.args.batch_size)
         state, context = rows["state"][0], rows["context"][0]
+        depth = self.replay_depth(rows)
+        if depth is not None:
+            with torch.no_grad():
+                context = torch.cat((context, self.wm.encode_depth(depth)), -1)
         history, previous, command, phase = [rows[k][0] for k in ("history", "previous", "command", "phase")]
+        # Imagined steps reuse the last real depth feature: the world model has no depth decoder,
+        # and the sensed terrain does not change while the rollout runs.
+        imagined_depth = history[:, -1, FRAME_DIM:] if depth is not None else None
         self.wm.requires_grad_(False); self.critic.requires_grad_(False)
         rewards, survivals, inputs = [], [torch.ones(len(state), device=state.device)], []
         for t in range(self.args.horizon):
@@ -240,7 +294,7 @@ class VelocityTrainer:
             phase = torch.stack((sine*torch.cos(state.new_tensor(angle))+cosine*torch.sin(state.new_tensor(angle)),
                                   cosine*torch.cos(state.new_tensor(angle))-sine*torch.sin(state.new_tensor(angle))), -1)
             phase = phase*(command.norm(dim=-1) >= .1)[:, None]
-            obs = frame(next_state, action, command, phase)
+            obs = frame(next_state, action, command, phase, imagined_depth)
             history = torch.cat((history[:, 1:], obs[:, None]), 1)
             state, previous = next_state, action
         boot = self.critic_value(state, context, command, phase)

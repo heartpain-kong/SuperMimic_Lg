@@ -46,7 +46,7 @@ class VelocityPlayback:
         from .velocity_physics import VelocitySimulator
         self.actor = CheckpointActor(checkpoint, "cpu", xml)
         self.sim = VelocitySimulator(xml, root, 1, "mujoco", "cpu", self.actor.metadata["terrain"],
-                                     seed=42, level=1, visuals=visuals)
+                                     seed=42, level=1, visuals=visuals, depth=self.actor.depth)
         self.checkpoint, self.steps, self.resets = str(Path(checkpoint).resolve()), 0, 0
         self.command = torch.tensor([[.6, 0., 0.]])
         settings = self.actor.metadata.get('command_config', {})
@@ -63,7 +63,7 @@ class VelocityPlayback:
         self.previous = torch.zeros(1,12)
         state, _ = self.sim.observe()
         phase = phase_at(torch.tensor([0]))*(self.command.norm(dim=-1)>=.1)[:,None]
-        obs = frame(state,self.previous,self.command,phase)
+        obs = frame(state,self.previous,self.command,phase,self.actor.encode(self.sim))
         self.history = obs[:,None].repeat(1,self.actor.history,1)
         self.pending_reset = False
 
@@ -77,14 +77,14 @@ class VelocityPlayback:
         state,context = self.sim.observe()
         self.frame += 1; self.steps += 1
         phase = phase_at(torch.tensor([self.frame]))*(self.command.norm(dim=-1)>=.1)[:,None]
-        obs = frame(state,action,self.command,phase)
+        obs = frame(state,action,self.command,phase,self.actor.encode(self.sim))
         self.history = torch.cat((self.history[:,1:],obs[:,None]),1)
         self.previous = action
         self.pending_reset = bool(failure(state,context)[0]) or self.frame >= 500
 
     def telemetry(self):
         return dict(task="velocity", checkpoint=self.checkpoint, checkpoint_iteration=self.actor.iteration,
-            history=self.actor.history, frame_dim=47, frame=self.frame, motion_frames=501,
+            history=self.actor.history, frame_dim=47+self.actor.depth_feat, frame=self.frame, motion_frames=501,
             steps=self.steps, resets=self.resets, root_height=float(self.sim.data[0].qpos[2]),
             training_terrain=self.actor.metadata["terrain"], playback_terrain=self.sim.terrain,
             command=self.command[0].tolist(), pending_reset=self.pending_reset)
