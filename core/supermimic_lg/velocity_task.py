@@ -6,6 +6,7 @@ from torch.nn import functional as F
 from .config import lgdog1_spec
 from .state import QuadrupedStateSpec, heading_quat, quat_apply, quat_apply_inverse
 from .world_model import mlp
+from .norm import RunningNorm, normed_mlp
 from .velocity_physics import GRID, offsets
 from .velocity_objective import objective_from
 
@@ -83,13 +84,37 @@ def velocity_error(state, command):
 
 
 class VelocityPolicy(nn.Module):
+    """Obs-normalised MLP with a small linear head, as the xmimic reference policy.
+
+    The output is deliberately *not* squashed: a tanh head saturates and its
+    gradient vanishes exactly where the actions matter, which is why the earlier
+    version could not push the policy out of the initial joint pose.
+    """
+
     def __init__(self, history=3, width=128, depth_feat=0):
         super().__init__()
         self.history, self.width, self.depth_feat = history, width, int(depth_feat)
+        self.obs_norm = RunningNorm(frame_dim(depth_feat))
         self.net = mlp(history*frame_dim(depth_feat), (width, width), 12)
+        with torch.no_grad():
+            self.net[-1].weight.mul_(.01)
+            self.net[-1].bias.zero_()
 
     def forward(self, history):
-        return self.net(history.flatten(1)).tanh()
+        return self.net(self.obs_norm.apply(history).flatten(1))
+
+
+class VelocityCritic(nn.Module):
+    """Value head on normalised features (xmimic keeps a running norm on critic input)."""
+
+    def __init__(self, width=128, depth_feat=0):
+        super().__init__()
+        dim = 37+5+1+GRID*GRID+int(depth_feat)+5
+        self.norm = RunningNorm(dim)
+        self.net = mlp(dim, (max(64, 2*width), width), 1)
+
+    def forward(self, features):
+        return self.net(self.norm.apply(features)).squeeze(-1)
 
 
 class VelocityWorldModel(nn.Module):
@@ -99,7 +124,9 @@ class VelocityWorldModel(nn.Module):
         self.encoder = depth_encoder
         self.depth_feat = 0 if depth_encoder is None else int(depth_encoder.spec["feat"])
         inputs = 37+5+1+GRID*GRID+self.depth_feat+12
-        self.dynamics = mlp(inputs, (width,)*3, self.spec.delta_dim, zero_last=True)
+        self.in_norm = RunningNorm(inputs)
+        self.out_norm = RunningNorm(self.spec.delta_dim)
+        self.dynamics = normed_mlp(inputs, (width,)*3, self.spec.delta_dim, zero_last=True)
         self.contacts = mlp(inputs, (width, width), 5)
         nn.init.constant_(self.contacts[-1].bias, -3.)
 
@@ -113,10 +140,20 @@ class VelocityWorldModel(nn.Module):
             features = torch.cat((features, context[:, CONTEXT_DIM:]), -1)
         return features
 
+    def condition(self, state, action, context):
+        """Normalised network input for a state-action pair."""
+        return self.in_norm.apply(torch.cat((self.features(state, context), action), -1))
+
     def step(self, state, action, context):
-        features = torch.cat((self.features(state, context), action), -1)
-        physical = self.spec.integrate(state[:, :37], self.dynamics(features))
-        return torch.cat((physical, self.contacts(features).sigmoid()), -1)
+        x = self.condition(state, action, context)
+        physical = self.spec.integrate(state[:, :37], self.dynamics(x)*self.out_norm.std() + self.out_norm.mean)
+        return torch.cat((physical, self.contacts(x).sigmoid()), -1)
+
+    @torch.no_grad()
+    def update_norms(self, state, action, context, next_state):
+        """Fit the input and residual-output normalisers from real transitions."""
+        self.in_norm.update(self.condition(state, action, context))
+        self.out_norm.update(self.spec.delta_between(state, next_state))
 
     def termination(self, state, context):
         height = ground_clearance(state, context)

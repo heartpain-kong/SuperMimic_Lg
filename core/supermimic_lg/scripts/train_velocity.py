@@ -11,7 +11,7 @@ from supermimic_lg.simulator import resolve_robot_xml
 from supermimic_lg.state import heading_quat, quat_apply
 from supermimic_lg.depth import DepthEncoder, DepthLagBuffer, corrupt_depth, depth_spec
 from supermimic_lg.velocity_physics import VelocitySimulator
-from supermimic_lg.velocity_task import (VelocityWorldModel, VelocityPolicy, VelocityReplay,
+from supermimic_lg.velocity_task import (VelocityWorldModel, VelocityPolicy, VelocityCritic, VelocityReplay,
     FootKinematics, frame, phase_at, failure, velocity_error, reward, frame_dim, context_dim,
     FRAME_DIM, CONTEXT_DIM)
 
@@ -59,13 +59,13 @@ class VelocityTrainer:
         encoder = None if self.depth_spec is None else DepthEncoder(self.depth_spec).to(args.device)
         self.wm = VelocityWorldModel(args.network_size, encoder).to(args.device)
         self.policy = VelocityPolicy(args.history, args.network_size, self.depth_feature_dim).to(args.device)
-        self.critic = mlp(37+5+1+81+self.depth_feature_dim+5, (args.network_size, args.network_size), 1).to(args.device)
+        self.critic = VelocityCritic(args.network_size, self.depth_feature_dim).to(args.device)
         self.optimizers = [torch.optim.AdamW(m.parameters(), lr=lr)
-                           for m, lr in ((self.wm, 3e-4), (self.policy, 2e-4), (self.critic, 2e-4))]
+                           for m, lr in ((self.wm, 4e-4), (self.policy, 3e-4), (self.critic, 2e-4))]
         self.iteration = self.transitions = self.elapsed_before = 0
         from supermimic_lg.velocity_contract import shared_task_contract
         self.task_contract,self.task_contract_sha=shared_task_contract(self.xml,args.mjlab_root,args)
-        self.metadata = dict(task="velocity", version=1, xml_sha256=file_hash(self.xml),
+        self.metadata = dict(task="velocity", version=2, xml_sha256=file_hash(self.xml),
             learning_precision="tf32" if args.backend=='mjlab' else "torch_default",
             task_contract_sha256=self.task_contract_sha,
             history=args.history, frame_dim=frame_dim(self.depth_feature_dim), network_size=args.network_size,
@@ -226,6 +226,7 @@ class VelocityTrainer:
             new_phase = phase_at(self.steps)
             new_phase *= (self.command.norm(dim=-1) >= .1)[:, None]
             obs = frame(next_state, self.previous, self.command, new_phase, self.depth_feature)
+            self.policy.obs_norm.update(obs)
             self.history = torch.cat((self.history[:, 1:], obs[:, None]), 1)
             totals += torch.stack((r.sum(), xy.sum(), yaw.sum(), failed.sum(), prediction_error.sum(), contact_error.sum()))
             self.reset(ids)
@@ -250,6 +251,8 @@ class VelocityTrainer:
         depth = self.replay_depth(rows)
         if depth is not None:
             context = torch.cat((context, self.wm.encode_depth(depth)), -1)
+        # Fit the world-model normalisers on the same distribution it is trained on.
+        self.wm.update_norms(state, rows["action"][0], context, rows["next"][0])
         errors, contacts = [], []
         for t in range(a.wm_horizon):
             state = self.wm.step(state, rows["action"][t], context)
@@ -274,7 +277,7 @@ class VelocityTrainer:
         return float(grad)
 
     def critic_value(self, state, context, command, phase):
-        return self.critic(torch.cat((self.wm.features(state, context), command, phase), -1)).squeeze(-1)
+        return self.critic(torch.cat((self.wm.features(state, context), command, phase), -1))
 
     def update_policy(self):
         rows = self.replay.sample(self.args.batch_size)
@@ -307,19 +310,37 @@ class VelocityTrainer:
         objective = sum(.99**t*survivals[t]*r for t,r in enumerate(rewards)) + .99**len(rewards)*survivals[-1]*boot
         grad = self.optimize(-objective.mean(), self.policy, self.optimizers[1])
         self.critic.requires_grad_(True)
+        gamma, lam = .99, .95
         with torch.no_grad():
-            target = boot.detach()
-            targets = []
+            features = [torch.cat((self.wm.features(s.detach(), context), command, p.detach()), -1)
+                        for s, p in inputs]
+            values = [self.critic(f) for f in features]
+            gae = torch.zeros_like(values[0])
+            targets = [None]*len(rewards)
+            # GAE(lambda) over the imagined rollouts, with the learned soft termination
+            # as the per-step done mask (xmimic: alpha in nets.critic + algorithm.gae).
             for t in reversed(range(len(rewards))):
-                ratio = survivals[t+1]/survivals[t].clamp_min(1e-8)
-                target = rewards[t].detach()+.99*ratio.detach()*target
-                targets.append(target)
-            targets.reverse()
-        predictions = torch.stack([self.critic_value(s.detach(), context, command, p.detach()) for s,p in inputs])
-        loss = F.mse_loss(predictions, torch.stack(targets))
-        self.optimize(loss, self.critic, self.optimizers[2])
+                alive = survivals[t+1].detach()/survivals[t].detach().clamp_min(1e-8)
+                following = boot.detach() if t == len(rewards)-1 else values[t+1]
+                delta = rewards[t].detach() + gamma*alive*following - values[t]
+                gae = delta + gamma*lam*alive*gae
+                targets[t] = gae + values[t]
+        inputs_x = torch.cat(features, 0)
+        targets_y = torch.cat(targets, 0)
+        self.critic.norm.update(inputs_x)
+        loss = None
+        total = inputs_x.shape[0]
+        size = max(1, total//4)
+        for _ in range(3):
+            order = torch.randperm(total, device=inputs_x.device)
+            for start in range(0, total - size + 1, size):
+                index = order[start:start+size]
+                loss = F.mse_loss(self.critic.net(self.critic.norm.apply(inputs_x[index])).squeeze(-1),
+                                  targets_y[index])
+                self.optimize(loss, self.critic, self.optimizers[2])
         self.wm.requires_grad_(True)
-        return {"policy/actor_objective": float(objective.detach().mean()), "policy/critic_loss": float(loss.detach()),
+        return {"policy/actor_objective": float(objective.detach().mean()),
+                "policy/critic_loss": float(loss.detach()) if loss is not None else float("nan"),
                 "policy/policy_grad_norm": grad}
 
     def save(self):

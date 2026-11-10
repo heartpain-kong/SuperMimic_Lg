@@ -40,6 +40,8 @@ class CheckpointActor:
         self.metadata = ck["metadata"]
         if self.metadata["xml_sha256"] != digest(xml):
             raise ValueError("benchmark robot XML differs from checkpoint")
+        if self.metadata.get("version") != 2:
+            raise ValueError("benchmark needs a version-2 velocity checkpoint (running normalisers); retrain it")
         self.history = self.metadata["history"]
         self.depth = self.metadata.get("depth")
         self.depth_feat = 0 if not self.depth else int(self.depth["feat"])

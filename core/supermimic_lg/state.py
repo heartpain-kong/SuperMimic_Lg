@@ -43,6 +43,21 @@ def quat_from_rotvec(v: torch.Tensor) -> torch.Tensor:
     return quat_normalize(torch.cat((torch.cos(half), v * scale), dim=-1))
 
 
+def quat_to_rotvec(q: torch.Tensor) -> torch.Tensor:
+    """Inverse of :func:`quat_from_rotvec`, shortest path (w >= 0)."""
+    q = quat_normalize(q)
+    sign = torch.where(q[..., :1] < 0, -torch.ones_like(q[..., :1]), torch.ones_like(q[..., :1]))
+    q = q * sign
+    v = q[..., 1:]
+    sin_half = v.norm(dim=-1, keepdim=True)
+    angle = 2.0 * torch.atan2(sin_half, q[..., :1].clamp_min(1e-9))
+    safe = sin_half.clamp_min(1e-6)
+    exact = angle / safe
+    approx = 2.0 / q[..., :1].clamp_min(1e-6)
+    scale = torch.where(sin_half > 1e-6, exact, approx)
+    return v * scale
+
+
 def quat_to_rot6d(q: torch.Tensor) -> torch.Tensor:
     q = quat_normalize(q)
     w, x, y, z = q.unbind(-1)
@@ -127,6 +142,22 @@ class QuadrupedStateSpec:
         q_new = quat_normalize(quat_mul(q, quat_from_rotvec(dt * w_new + dtheta)))
         qj_new = qj + dt * qd_new + dq
         return self.join(p_new, q_new, qj_new, v_new, w_new, qd_new)
+
+    def delta_between(self, state: torch.Tensor, next_state: torch.Tensor) -> torch.Tensor:
+        """The exact ``delta`` that :meth:`integrate` would need to reach ``next_state``.
+
+        Used to fit the world-model output normaliser on real transitions.
+        """
+        n = self.n_joints
+        p, q, qj, v, w, qd = self.split(state)
+        p1, q1, qj1, v1, w1, qd1 = self.split(next_state)
+        q = quat_normalize(q)
+        hq = heading_quat(q)
+        dt = self.dt
+        dp = quat_apply_inverse(hq, p1 - p - dt * v1)
+        dtheta = quat_to_rotvec(quat_mul(q * q.new_tensor([1., -1., -1., -1.]), quat_normalize(q1))) - dt * w1
+        dv = quat_apply_inverse(hq, v1 - v)
+        return torch.cat((dv, w1 - w, qd1 - qd, dp, dtheta, qj1 - qj - dt * qd1), dim=-1)
 
     def error_vector(self, predicted: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         n = self.n_joints
