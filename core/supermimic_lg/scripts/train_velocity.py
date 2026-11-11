@@ -164,19 +164,34 @@ class VelocityTrainer:
         obs[:, 9:11] *= (self.command[ids].norm(dim=-1) >= .1)[:, None]
         self.history[ids] = obs[:, None].expand(-1, self.args.history, -1)
 
+    def exploration_noise(self):
+        """Decaying action noise: full-range exploration first, then fine tuning.
+
+        The policy head starts near zero, so without this the replay never contains
+        large actions and the world model cannot learn what they would do.
+        """
+        a = self.args
+        if a.explore_iterations <= 0:
+            return a.action_noise
+        progress = min(1., self.iteration/max(1, a.explore_iterations))
+        return a.explore_noise + (a.action_noise - a.explore_noise)*progress
+
     @torch.no_grad()
     def collect(self):
         totals = torch.zeros(6, device=self.args.device)
         component_totals = {}
         completed = promotions = demotions = 0
+        action_std = 0.
         lengths = []
+        noise = self.exploration_noise()
         for _ in range(self.args.collect_steps):
             state, base_context = self.sim.observe()
             self.refresh_depth()
             context = (base_context if self.depth_feature is None
                        else torch.cat((base_context, self.depth_feature), -1))
             action = self.policy(self.history)
-            executed = (action+self.args.action_noise*torch.randn_like(action)).clamp(-1., 1.)
+            executed = (action+noise*torch.randn_like(action)).clamp(-1., 1.)
+            action_std += float(executed.std())
             phase = phase_at(self.steps)
             phase *= (self.command.norm(dim=-1) >= .1)[:, None]
             self.sim.step(executed)
@@ -237,6 +252,7 @@ class VelocityTrainer:
             yaw_error_rps=float(totals[2]/denominator), failures=int(totals[3]), episodes=completed,
             wm_online_state_error=float(totals[4]/denominator), wm_online_contact_error=float(totals[5]/denominator),
             episode_length=sum(lengths)/max(1,len(lengths)), terrain_promotions=promotions, terrain_demotions=demotions,
+            action_std=action_std/self.args.collect_steps, exploration_noise=float(noise),
             **{'reward/'+k:float(v/denominator) for k,v in component_totals.items()})
 
     def replay_depth(self, rows):

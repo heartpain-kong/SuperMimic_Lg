@@ -264,6 +264,10 @@ def parser():
                    default=(512, 256, 128), help="critic hidden widths, comma separated")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--action-noise", type=float, default=.1)
+    p.add_argument("--explore-noise", type=float, default=1.0,
+                   help="action-noise scale at the start of training; decays to --action-noise")
+    p.add_argument("--explore-iterations", type=int, default=100,
+                   help="iterations over which exploration noise decays (0 disables the schedule)")
     p.add_argument("--depth", action="store_true",
                    help="velocity only: add an egocentric pinhole depth camera to the actor and world model")
     p.add_argument("--depth-size", default="18x24", help="depth image height x width in rays")
