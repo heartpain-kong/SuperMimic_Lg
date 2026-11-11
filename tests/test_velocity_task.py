@@ -191,3 +191,26 @@ def test_oom_hint_halves_memory_dominant_sizes():
                     batch_size=1,horizon=1,history=3,terrain="flat",wm_horizon=8))
     assert small["suggested"]["num_envs"]==1 and small["suggested"]["replay_capacity"]==8
     assert small["suggested"]["batch_size"]==1 and small["suggested"]["horizon"]==1
+
+def test_huge_policy_output_cannot_explode_the_imagined_return(tmp_path):
+    """Regression: an unbounded linear head used to extrapolate the world model."""
+    xml=os.environ.get('LGDOG_TEST_XML')
+    if not xml or not Path(xml).is_file():pytest.skip('set LGDOG_TEST_XML for real LgDog integration')
+    from supermimic_lg.scripts.train_supermimic import parser
+    from supermimic_lg.scripts.train_velocity import VelocityTrainer
+    args=parser().parse_args(['--task','velocity','--robot-xml',xml,'--backend','mujoco','--device','cpu',
+        '--num-envs','2','--iterations','2','--collect-steps','2','--wm-updates','1','--policy-updates','1',
+        '--warmup-iterations','1','--batch-size','4','--horizon','3','--wm-horizon','2','--history','3',
+        '--episode-steps','4','--wm-hidden','16,16','--actor-hidden','16,16','--critic-hidden','16,16',
+        '--output-dir',str(tmp_path/'explode')])
+    trainer=VelocityTrainer(args)
+    try:
+        trainer.collect()
+        with torch.no_grad():
+            trainer.policy.net[-1].bias.fill_(50.)
+        metrics=trainer.update_policy()
+        assert all(torch.isfinite(torch.tensor(v)) for v in metrics.values())
+        assert abs(metrics['policy/actor_objective']) < 1e4
+        assert metrics['policy/critic_loss'] < 1e6
+    finally:
+        trainer.sim.close()

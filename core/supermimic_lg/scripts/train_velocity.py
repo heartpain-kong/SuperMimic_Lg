@@ -296,9 +296,12 @@ class VelocityTrainer:
         rewards, survivals, inputs = [], [torch.ones(len(state), device=state.device)], []
         for t in range(self.args.horizon):
             inputs.append((state, phase))
-            action = self.policy(history)
+            # The simulator executes clipped actions; the world model was only fitted on
+            # that range. An unbounded linear policy head must be clipped here as well,
+            # otherwise it extrapolates the model and the imagined return explodes.
+            action = self.policy(history).clamp(-1., 1.)
             next_state = self.wm.step(state, action, context)
-            rewards.append(reward(next_state, action, previous, command, phase, context, self.feet, self.objective))
+            rewards.append(reward(next_state, action, previous, command, phase, context, self.feet, self.objective).clamp(-10., 10.))
             survivals.append(survivals[-1]*(1-self.wm.termination(next_state, context)))
             angle = 2*torch.pi*.02/.6
             sine, cosine = phase.unbind(-1)
@@ -310,6 +313,9 @@ class VelocityTrainer:
             state, previous = next_state, action
         boot = self.critic_value(state, context, command, phase)
         objective = sum(.99**t*survivals[t]*r for t,r in enumerate(rewards)) + .99**len(rewards)*survivals[-1]*boot
+        if not torch.isfinite(objective).all() or float(objective.detach().abs().max()) > 1e4:
+            raise FloatingPointError(
+                "imagined return exploded (|J| > 1e4); the policy left the world model's valid region")
         grad = self.optimize(-objective.mean(), self.policy, self.optimizers[1])
         self.critic.requires_grad_(True)
         gamma, lam = .99, .95
@@ -328,7 +334,9 @@ class VelocityTrainer:
                 gae = delta + gamma*lam*alive*gae
                 targets[t] = gae + values[t]
         inputs_x = torch.cat(features, 0)
-        targets_y = torch.cat(targets, 0)
+        # Value targets stay inside the range implied by the reward scale; an unbounded
+        # bootstrap value is what turns a small model error into a diverging critic.
+        targets_y = torch.cat(targets, 0).clamp(-200., 200.)
         self.critic.norm.update(inputs_x)
         loss = None
         total = inputs_x.shape[0]
