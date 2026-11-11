@@ -6,6 +6,7 @@ import math
 @dataclass(frozen=True)
 class VelocityObjective:
     reward_velocity: float = 2.
+    reward_progress: float = .5
     reward_yaw: float = 1.
     reward_upright: float = .5
     reward_height: float = .5

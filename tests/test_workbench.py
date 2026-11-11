@@ -67,6 +67,12 @@ def test_velocity_workbench_needs_no_reference_motion(tmp_path):
         with pytest.raises(ValueError):
             wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mujoco',device='cpu',
                                   **invalid),tmp_path,tmp_path/'bad')
+    curriculum=wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mujoco',device='cpu',
+        reward_progress=1.5,command_curriculum_iterations=300,command_curriculum_start=0.3),
+        tmp_path,tmp_path/'curriculum')
+    for flag,value in (('--reward-progress','1.5'),('--command-curriculum-iterations','300'),
+                       ('--command-curriculum-start','0.3')):
+        assert curriculum[curriculum.index(flag)+1]==value, flag
 
 
 def test_benchmark_command_uses_shared_protocol_and_rejects_mixed_single_world(tmp_path):

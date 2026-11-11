@@ -129,8 +129,16 @@ class VelocityTrainer:
         (self.output/"config.json").write_text(json.dumps({"args": config, **self.metadata,
             "shared_task_contract":self.task_contract,"shared_task_contract_sha256":self.task_contract_sha}, indent=2), encoding="utf-8")
 
+    def command_scale(self):
+        """Command curriculum: start small so a stable gait can appear first."""
+        a = self.args
+        if a.command_curriculum_iterations <= 0:
+            return 1.
+        progress = min(1., self.iteration/max(1, a.command_curriculum_iterations))
+        return a.command_curriculum_start + (1. - a.command_curriculum_start)*progress
+
     def sample_commands(self, ids):
-        self.command[ids] = sample_commands(self.args, len(ids), self.args.device)
+        self.command[ids] = sample_commands(self.args, len(ids), self.args.device)*self.command_scale()
 
     @torch.no_grad()
     def refresh_depth(self, ids=None):
@@ -161,7 +169,7 @@ class VelocityTrainer:
         self.refresh_depth(ids)
         obs = frame(state[ids], self.previous[ids], self.command[ids], phase_at(self.steps[ids]),
                     None if self.depth_feature is None else self.depth_feature[ids])
-        obs[:, 9:11] *= (self.command[ids].norm(dim=-1) >= .1)[:, None]
+        obs[:, 9:11] *= (self.command[ids].norm(dim=-1) >= 1e-3)[:, None]
         self.history[ids] = obs[:, None].expand(-1, self.args.history, -1)
 
     def exploration_noise(self):
@@ -193,7 +201,7 @@ class VelocityTrainer:
             executed = (action+noise*torch.randn_like(action)).clamp(-1., 1.)
             action_std += float(executed.std())
             phase = phase_at(self.steps)
-            phase *= (self.command.norm(dim=-1) >= .1)[:, None]
+            phase *= (self.command.norm(dim=-1) >= 1e-3)[:, None]
             self.sim.step(executed)
             next_state, next_context = self.sim.observe()
             self.refresh_depth()
@@ -241,7 +249,7 @@ class VelocityTrainer:
             change = ((self.steps % 250 == 0) & ~reset).nonzero().flatten()
             self.sample_commands(change)
             new_phase = phase_at(self.steps)
-            new_phase *= (self.command.norm(dim=-1) >= .1)[:, None]
+            new_phase *= (self.command.norm(dim=-1) >= 1e-3)[:, None]
             obs = frame(next_state, self.previous, self.command, new_phase, self.depth_feature)
             self.policy.obs_norm.update(obs)
             self.history = torch.cat((self.history[:, 1:], obs[:, None]), 1)
@@ -323,7 +331,7 @@ class VelocityTrainer:
             sine, cosine = phase.unbind(-1)
             phase = torch.stack((sine*torch.cos(state.new_tensor(angle))+cosine*torch.sin(state.new_tensor(angle)),
                                   cosine*torch.cos(state.new_tensor(angle))-sine*torch.sin(state.new_tensor(angle))), -1)
-            phase = phase*(command.norm(dim=-1) >= .1)[:, None]
+            phase = phase*(command.norm(dim=-1) >= 1e-3)[:, None]
             obs = frame(next_state, action, command, phase, imagined_depth)
             history = torch.cat((history[:, 1:], obs[:, None]), 1)
             state, previous = next_state, action

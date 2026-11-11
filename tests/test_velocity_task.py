@@ -155,7 +155,8 @@ def test_reference_free_real_physics_training_and_resume(tmp_path,seed):
         '--warmup-iterations','1','--batch-size','4','--wm-hidden', '16,16', '--actor-hidden', '16,16', '--critic-hidden', '16,16','--horizon','2','--wm-horizon','2',
         '--episode-steps','4','--seed',str(seed),'--output-dir',str(tmp_path/'run'),
         '--command-mode','fixed','--command-vx','.4','--command-vy','0','--command-yaw','0',
-        '--standing-fraction','0','--reward-velocity','3','--swing-height','.09'])
+        '--standing-fraction','0','--reward-velocity','3','--swing-height','.09',
+        '--command-curriculum-iterations','0'])
     assert args.motion_file is None
     trainer=VelocityTrainer(args)
     trainer.run()
@@ -214,3 +215,22 @@ def test_huge_policy_output_cannot_explode_the_imagined_return(tmp_path):
         assert metrics['policy/critic_loss'] < 1e6
     finally:
         trainer.sim.close()
+
+def test_progress_reward_is_linear_and_punishes_standing():
+    from supermimic_lg.velocity_task import reward
+    def feet(state):
+        return torch.zeros(len(state),4,3), torch.zeros(len(state),4,3)
+    context=torch.zeros(3,85); command=torch.tensor([[.4,0.,0.]]*3)
+    phase=torch.zeros(3,2); phase[:,1]=1.
+    previous=torch.zeros(3,12); action=torch.zeros(3,12)
+    state=torch.zeros(3,42); state[:,2]=.3; state[:,3]=1.
+    _,standing=reward(state,action,previous,command,phase,context,feet,return_terms=True)
+    forward=state.clone(); forward[:,19]=.4
+    _,moving=reward(forward,action,previous,command,phase,context,feet,return_terms=True)
+    backward=state.clone(); backward[:,19]=-.4
+    _,reverse=reward(backward,action,previous,command,phase,context,feet,return_terms=True)
+    assert abs(float(standing['progress'].mean()))<1e-6          # standing earns nothing here
+    assert float(moving['progress'].mean())>0.45                 # weight 0.5 x full progress
+    assert float(reverse['progress'].mean())<-0.45               # moving backwards is penalised
+    # Standing still costs this much less than tracking, i.e. the term is no longer flat.
+    assert float(moving['velocity'].mean())>float(standing['velocity'].mean())

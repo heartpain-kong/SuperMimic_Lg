@@ -266,6 +266,10 @@ def parser():
     p.add_argument("--action-noise", type=float, default=.1)
     p.add_argument("--explore-noise", type=float, default=1.0,
                    help="action-noise scale at the start of training; decays to --action-noise")
+    p.add_argument("--command-curriculum-iterations", type=int, default=500,
+                   help="iterations to ramp command magnitude from --command-curriculum-start to 1.0 (0 disables)")
+    p.add_argument("--command-curriculum-start", type=float, default=0.25,
+                   help="command scale at iteration 0 of the curriculum")
     p.add_argument("--explore-iterations", type=int, default=100,
                    help="iterations over which exploration noise decays (0 disables the schedule)")
     p.add_argument("--depth", action="store_true",
@@ -296,6 +300,10 @@ def main():
                 "wm_horizon", "horizon", "history", "goal_horizon", "replay_capacity", "episode_steps", "save_interval", "torch_threads")
     if any(getattr(args, x) <= 0 for x in positive) or args.replay_capacity < args.wm_horizon or not 0 <= args.action_noise <= 1:
         p.error("sizes/counts must be positive, replay capacity >= wm horizon, action noise in [0,1]")
+    if args.command_curriculum_iterations < 0 or not 0 < args.command_curriculum_start <= 1:
+        p.error("command curriculum needs iterations >= 0 and 0 < start <= 1")
+    if args.explore_iterations < 0 or args.explore_noise < 0:
+        p.error("exploration iterations and noise must be non-negative")
     if args.device.startswith("cuda") and not torch.cuda.is_available():
         p.error("CUDA is unavailable; use --backend mujoco --device cpu for real CPU physics")
     if args.task == "tracking" and args.motion_file is None:

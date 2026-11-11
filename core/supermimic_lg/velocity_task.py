@@ -206,7 +206,14 @@ def reward(state, action, previous, command, phase, context, feet, objective=Non
     wave = phase[:, :1] * state.new_tensor([1., -1., -1., 1.])[None]
     swing = torch.sigmoid(wave*10.)
     contact = state[:, 37:41]
-    moving = (command.norm(dim=-1) > .1).float()
+    moving = (command.norm(dim=-1) > 1e-3).float()
+    # Signed progress along the commanded direction. Unlike exp(-err^2) this is linear,
+    # so it keeps a constant gradient while the robot is standing still — that is the
+    # signal that pulls the policy out of the standing local optimum.
+    local_velocity = quat_apply_inverse(heading_quat(state[:, 3:7]), state[:, 19:22])[:, :2]
+    speed = command[:, :2].norm(dim=-1)
+    direction = command[:, :2]/speed.clamp_min(1e-6)[:, None]
+    progress = ((local_velocity*direction).sum(-1)/speed.clamp_min(.1)).clamp(-1., 1.)*moving
     gait = (1.-(contact-(1.-swing)).square().mean(-1))*moving
     lift = torch.exp(-((clearance-cfg.swing_height*swing).square()/.03**2).mean(-1))*moving
     slip = (contact*foot_vel[..., :2].square().sum(-1)).mean(-1)
@@ -218,7 +225,7 @@ def reward(state, action, previous, command, phase, context, feet, objective=Non
     energy = (torque*qd).abs().mean(-1)
     qlimits = state.new_tensor(lgdog1_spec().joint_pos_limits)
     joint_limit = (torch.relu(qlimits[:, 0]-q)+torch.relu(q-qlimits[:, 1])).square().mean(-1)
-    raw = dict(velocity=torch.exp(-xy.square()/cfg.velocity_tolerance**2),
+    raw = dict(velocity=torch.exp(-xy.square()/cfg.velocity_tolerance**2), progress=progress,
         yaw=torch.exp(-yaw.square()/cfg.yaw_tolerance**2), upright=(-gravity[:, 2]).clamp(-1., 1.),
         height=torch.exp(-(height-cfg.target_height).square()/.01), gait=gait, lift=lift,
         action_rate=(action-previous).square().mean(-1), slip=slip, energy=energy,

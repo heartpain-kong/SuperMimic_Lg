@@ -159,6 +159,10 @@ def build_command(data, root, run_dir):
                         from .config import parse_hidden
                         parse_hidden(value, field)
                         command += ["--" + flag, value]
+                command += ["--command-curriculum-iterations",
+                            str(integer(data, "command_curriculum_iterations", 500, 0, 10_000_000)),
+                            "--command-curriculum-start",
+                            str(float(data.get("command_curriculum_start", .25) or .25))]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
                     ("history", "history", 3, 128),

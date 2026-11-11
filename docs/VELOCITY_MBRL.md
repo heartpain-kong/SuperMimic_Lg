@@ -180,22 +180,22 @@ python -m supermimic_lg.scripts.train_supermimic \
 
 工作台的“平地前进 / 全向指令 / 地形前进”按钮只填写任务参数。“平地前进”设置固定前进 0.4 m/s、横移和转向为零、站立比例为零；“地形前进”在此基础上选择 rough。它们不是已验证收敛的配方。手动选择“随机范围”时，0.4 表示 -0.4 到 0.4；选择“固定速度”时，0.4 表示固定向前 0.4 m/s。
 
-展开“奖励与目标高度”即可修改 11 项权重、目标机身离地高度、固定抬脚高度和速度奖励宽度。命令行示例（追加到上面的速度训练命令）：
+展开“奖励与目标高度”即可修改 12 项权重、目标机身离地高度、固定抬脚高度和速度奖励宽度。命令行示例（追加到上面的速度训练命令）：
 
 ```bash
 --command-mode fixed --command-vx 0.4 --command-vy 0 --command-yaw 0 \
 --standing-fraction 0 --target-height 0.30 --swing-height 0.06 \
---reward-velocity 2 --reward-yaw 1 --reward-upright 0.5 --reward-height 0.5 \
+--reward-velocity 2 --reward-progress 0.5 --reward-yaw 1 --reward-upright 0.5 --reward-height 0.5 \
 --reward-gait 0.3 --reward-lift 0.3 --reward-action-rate -0.05 \
 --reward-slip -0.05 --reward-energy -0.002 --reward-joint-limit -2 \
 --reward-trunk-contact -2 --velocity-tolerance 0.5 --yaw-tolerance 0.5
 ```
 
-奖励项用非负数，惩罚项用非正数，0 可关闭一项。速度奖励为 `exp(-error² / tolerance²)`，宽度越小越严格；它是训练奖励参数，不会改变评估通过门槛。机身目标高度相对根下地面计算；抬脚目标相对脚下地面计算，尚不按前方台阶高度自动调整。物理失败高度范围、倾斜和机身接触判断也不会随奖励权重改变。
+奖励项用非负数，惩罚项用非正数，0 可关闭一项。速度奖励为 `exp(-error² / tolerance²)`，宽度越小越严格；`--reward-progress` 是沿指令方向的**线性**进度（-1..1），站立时为 0、满速时约 1、反向为负。它在静止处仍有恒定梯度，用来把策略从“站着不动”的局部最优里拉出来——指数型的 `reward-velocity` 在误差大时几乎饱和，单靠它给不出“开始动”的信号。两者都是训练奖励参数，不改变评估通过门槛。机身目标高度相对根下地面计算；抬脚目标相对脚下地面计算，尚不按前方台阶高度自动调整。物理失败高度范围、倾斜和机身接触判断也不会随奖励权重改变。
 
 实际仿真和 WM 推演调用同一个奖励函数并使用相同配置。日志会输出 `reward/velocity` 等各项加权贡献，工作台日志中可展开查看；这些贡献之和等于本轮真实平均奖励。WM 的监督目标仍是真实物理转移与接触，不是奖励大小。
 
-配置保存进 config.json 和 checkpoint，并参与共享任务哈希。改变奖励/目标后请创建新训练记录；需要沿用旧速度策略时使用 `--init-policy`，不要使用旧任务的 `--resume`。本次增加配置契约后，旧版本检查点也应采用 `--init-policy` 迁移。任务不会在已运行的训练中热更新。
+指令课程用 `--command-curriculum-iterations`（默认 500，0 关闭）和 `--command-curriculum-start`（默认 0.25）把指令幅度从初始比例线性放大到 1.0，让机器人先在小速度下学会稳定步态；工作台“指令课程轮数 / 初始指令比例”对应这两项。改动课程与探索参数同样进入任务契约，便于和 HIM/PPO 对照时核对。\n\n配置保存进 config.json 和 checkpoint，并参与共享任务哈希。改变奖励/目标后请创建新训练记录；需要沿用旧速度策略时使用 `--init-policy`，不要使用旧任务的 `--resume`。本次增加配置契约后，旧版本检查点也应采用 `--init-policy` 迁移。任务不会在已运行的训练中热更新。
 
 `train_him_velocity` 接受相同的上述参数。公平比较时，把这些参数同时传给两种算法，并核对 `shared_task_contract_sha256`；不能只修改一边的奖励。
 
