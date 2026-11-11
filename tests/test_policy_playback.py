@@ -21,7 +21,7 @@ def test_checkpoint_playback_is_deterministic_and_uses_saved_history(robot_xml, 
         "--backend", "mujoco", "--device", "cpu", "--num-envs", "1", "--iterations", "1",
         "--collect-steps", "4", "--wm-updates", "1", "--policy-updates", "1", "--warmup-iterations", "1",
         "--batch-size", "2", "--wm-horizon", "1", "--horizon", "1", "--history", "2", "--goal-horizon", "2",
-        "--replay-capacity", "8", "--network-size", "16", "--torch-threads", "1", "--output-dir", str(tmp_path / "run")])
+        "--replay-capacity", "8", "--wm-hidden", "16,16", "--actor-hidden", "16,16", "--critic-hidden", "16,16", "--torch-threads", "1", "--output-dir", str(tmp_path / "run")])
     Trainer(args).run()
     checkpoint = tmp_path / "run/checkpoint.pt"
     a = PolicyPlayback(checkpoint, motion, robot_xml, visuals=False)

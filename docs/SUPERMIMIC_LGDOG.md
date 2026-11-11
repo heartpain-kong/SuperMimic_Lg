@@ -56,7 +56,7 @@ python -m supermimic_lg.scripts.train_supermimic \
   --mjlab-root /path/to/unitree_rl_mjlab_lgdog \
   --motion-file /data/lgdog_motion.npz \
   --backend mujoco --device cpu --num-envs 2 \
-  --iterations 20 --batch-size 8 --network-size 32 \
+  --iterations 20 --batch-size 8 --wm-hidden 32,32 --actor-hidden 32,32 --critic-hidden 32,32 \
   --collect-steps 8 --wm-updates 5 --policy-updates 1 \
   --warmup-iterations 2 --horizon 4 \
   --seed 42 --output-dir logs/supermimic_cpu_seed42
@@ -74,7 +74,7 @@ python -m supermimic_lg.scripts.train_supermimic \
 --resume logs/supermimic_cpu_seed42/checkpoint.pt --iterations 100
 ```
 
-需要使用相同 motion/XML、`--network-size`、`--history` 和 `--goal-horizon`。当前默认 `--history 3`，表示当前 1 帧加过去 2 帧；旧 10 帧检查点需显式传入 `--history 10`，或在工作台将观测总帧数改为 10。这会恢复模型、优化器和训练计数；物理状态及 replay 会重新采集，先重新预热。它不保证位级重现原有物理轨迹。Linux 的 Ctrl+C/SIGTERM 会尝试保存当前模型；强制结束只能使用最近一次已完成的检查点。
+需要使用相同 motion/XML、`--actor-hidden`、`--wm-hidden`（动作跟踪默认 512,256,128），`--history` 和 `--goal-horizon`。当前默认 `--history 3`，表示当前 1 帧加过去 2 帧；旧 10 帧检查点需显式传入 `--history 10`，或在工作台将观测总帧数改为 10。这会恢复模型、优化器和训练计数；物理状态及 replay 会重新采集，先重新预热。它不保证位级重现原有物理轨迹。Linux 的 Ctrl+C/SIGTERM 会尝试保存当前模型；强制结束只能使用最近一次已完成的检查点。
 
 日志分别输出真实仿真奖励、物理失败数、完整回合数/长度、世界模型状态误差与终止损失、想象奖励、生存概率、策略梯度，以及世界模型对动作的梯度。想象奖励不能替代真实环境评估；短站立参考动作的检查通过也不能证明学会了行走。
 

@@ -66,7 +66,7 @@ def test_depth_lag_buffer_delays_by_configured_steps():
 
 def test_world_model_conditions_on_depth_and_trains_the_encoder():
     spec = depth_spec("10x12", feat=6)
-    wm = VelocityWorldModel(16, DepthEncoder(spec))
+    wm = VelocityWorldModel((16, 16), DepthEncoder(spec))
     assert wm.depth_feat == 6
     state = torch.zeros(2, 42); state[:, 2] = .3; state[:, 3] = 1.
     base = torch.zeros(2, CONTEXT_DIM)
@@ -89,7 +89,7 @@ def test_depth_changes_actor_frame_and_replay_dtype():
     with_depth = frame(torch.cat((torch.zeros(1, 42), torch.tensor([[0.]])), -1)[:, :42],
                        torch.zeros(1, 12), torch.zeros(1, 3), torch.zeros(1, 2), torch.ones(1, 4))
     assert with_depth.shape == (1, frame_dim(4))
-    policy = VelocityPolicy(history=2, width=16, depth_feat=4)
+    policy = VelocityPolicy(history=2, hidden=(16, 16), depth_feat=4)
     assert policy(torch.zeros(3, 2, frame_dim(4))).shape == (3, 12)
     replay = VelocityReplay(4, 3, 2, "cpu", frame=frame_dim(4), depth_pixels=64)
     assert replay.rows["depth"].dtype == torch.float16
@@ -110,7 +110,7 @@ def test_reference_free_training_with_depth_on_real_physics(tmp_path):
     common = ["--task", "velocity", "--robot-xml", xml, "--backend", "mujoco", "--device", "cpu",
               "--num-envs", "2", "--iterations", "2", "--collect-steps", "3", "--wm-updates", "1",
               "--policy-updates", "1", "--warmup-iterations", "1", "--batch-size", "4",
-              "--network-size", "16", "--horizon", "2", "--wm-horizon", "2", "--episode-steps", "4",
+              "--wm-hidden", "16,16", "--actor-hidden", "16,16", "--critic-hidden", "16,16", "--horizon", "2", "--wm-horizon", "2", "--episode-steps", "4",
               "--command-mode", "fixed", "--standing-fraction", "0", "--depth",
               "--depth-size", "8x10", "--depth-feat", "6",
               "--depth-noise", "0.01", "--depth-dropout", "0.05", "--depth-latency", "1"]

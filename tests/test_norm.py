@@ -52,7 +52,7 @@ def test_delta_between_inverts_integration():
 
 def test_world_model_fits_its_normalisers_on_real_transitions():
     torch.manual_seed(0)
-    wm = VelocityWorldModel(16)
+    wm = VelocityWorldModel((16, 16))
     state = torch.zeros(8, 42)
     state[:, 2] = .3
     state[:, 3] = 1.
@@ -70,7 +70,7 @@ def test_world_model_fits_its_normalisers_on_real_transitions():
 
 
 def test_policy_head_is_small_linear_and_not_saturating():
-    policy = VelocityPolicy(history=3, width=32)
+    policy = VelocityPolicy(history=3, hidden=(32, 32))
     obs = torch.randn(64, 3, frame_dim(0))
     out = policy(obs)
     assert out.shape == (64, 12)
@@ -88,7 +88,7 @@ def test_policy_head_is_small_linear_and_not_saturating():
 
 
 def test_critic_normalises_its_input_and_returns_scalars():
-    critic = VelocityCritic(width=16)
+    critic = VelocityCritic(hidden=(16, 16))
     features = 5.*torch.randn(32, 37+5+1+81+5) + 10.
     values = critic(features)
     assert values.shape == (32,)

@@ -91,11 +91,11 @@ class VelocityPolicy(nn.Module):
     version could not push the policy out of the initial joint pose.
     """
 
-    def __init__(self, history=3, width=128, depth_feat=0):
+    def __init__(self, history=3, hidden=(512, 256, 128), depth_feat=0):
         super().__init__()
-        self.history, self.width, self.depth_feat = history, width, int(depth_feat)
+        self.history, self.hidden, self.depth_feat = history, tuple(hidden), int(depth_feat)
         self.obs_norm = RunningNorm(frame_dim(depth_feat))
-        self.net = mlp(history*frame_dim(depth_feat), (width, width), 12)
+        self.net = mlp(history*frame_dim(depth_feat), self.hidden, 12)
         with torch.no_grad():
             self.net[-1].weight.mul_(.01)
             self.net[-1].bias.zero_()
@@ -107,27 +107,28 @@ class VelocityPolicy(nn.Module):
 class VelocityCritic(nn.Module):
     """Value head on normalised features (xmimic keeps a running norm on critic input)."""
 
-    def __init__(self, width=128, depth_feat=0):
+    def __init__(self, hidden=(512, 256, 128), depth_feat=0):
         super().__init__()
         dim = 37+5+1+GRID*GRID+int(depth_feat)+5
         self.norm = RunningNorm(dim)
-        self.net = mlp(dim, (max(64, 2*width), width), 1)
+        self.net = mlp(dim, tuple(hidden), 1)
 
     def forward(self, features):
         return self.net(self.norm.apply(features)).squeeze(-1)
 
 
 class VelocityWorldModel(nn.Module):
-    def __init__(self, width=128, depth_encoder=None):
+    def __init__(self, hidden=(1024, 1024, 1024), depth_encoder=None):
         super().__init__()
         self.spec = QuadrupedStateSpec(12)
         self.encoder = depth_encoder
+        self.hidden = tuple(hidden)
         self.depth_feat = 0 if depth_encoder is None else int(depth_encoder.spec["feat"])
         inputs = 37+5+1+GRID*GRID+self.depth_feat+12
         self.in_norm = RunningNorm(inputs)
         self.out_norm = RunningNorm(self.spec.delta_dim)
-        self.dynamics = normed_mlp(inputs, (width,)*3, self.spec.delta_dim, zero_last=True)
-        self.contacts = mlp(inputs, (width, width), 5)
+        self.dynamics = normed_mlp(inputs, self.hidden, self.spec.delta_dim, zero_last=True)
+        self.contacts = mlp(inputs, (self.hidden[0],), 5)
         nn.init.constant_(self.contacts[-1].bias, -3.)
 
     def encode_depth(self, depth):

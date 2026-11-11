@@ -57,18 +57,20 @@ class VelocityTrainer:
                            if args.depth else None)
         self.depth_feature_dim = 0 if self.depth_spec is None else self.depth_spec["feat"]
         encoder = None if self.depth_spec is None else DepthEncoder(self.depth_spec).to(args.device)
-        self.wm = VelocityWorldModel(args.network_size, encoder).to(args.device)
-        self.policy = VelocityPolicy(args.history, args.network_size, self.depth_feature_dim).to(args.device)
-        self.critic = VelocityCritic(args.network_size, self.depth_feature_dim).to(args.device)
+        self.wm = VelocityWorldModel(args.wm_hidden, encoder).to(args.device)
+        self.policy = VelocityPolicy(args.history, args.actor_hidden, self.depth_feature_dim).to(args.device)
+        self.critic = VelocityCritic(args.critic_hidden, self.depth_feature_dim).to(args.device)
         self.optimizers = [torch.optim.AdamW(m.parameters(), lr=lr)
                            for m, lr in ((self.wm, 4e-4), (self.policy, 3e-4), (self.critic, 2e-4))]
         self.iteration = self.transitions = self.elapsed_before = 0
         from supermimic_lg.velocity_contract import shared_task_contract
         self.task_contract,self.task_contract_sha=shared_task_contract(self.xml,args.mjlab_root,args)
-        self.metadata = dict(task="velocity", version=2, xml_sha256=file_hash(self.xml),
+        self.metadata = dict(task="velocity", version=3, xml_sha256=file_hash(self.xml),
             learning_precision="tf32" if args.backend=='mjlab' else "torch_default",
             task_contract_sha256=self.task_contract_sha,
-            history=args.history, frame_dim=frame_dim(self.depth_feature_dim), network_size=args.network_size,
+            history=args.history, frame_dim=frame_dim(self.depth_feature_dim),
+            wm_hidden=list(args.wm_hidden), actor_hidden=list(args.actor_hidden),
+            critic_hidden=list(args.critic_hidden),
             terrain=args.terrain, context_dim=context_dim(self.depth_feature_dim), state_dim=42, dt=.02,
             physics_dt=.005, depth=self.depth_spec,
             actor_sensing=("proprioception_command_phase_depth" if self.depth_spec is not None
@@ -81,7 +83,7 @@ class VelocityTrainer:
             ck = torch.load(args.init_policy,map_location=args.device,weights_only=True)
             if ck.get("algorithm") != "supermimic_velocity_bptt" or any(
                     ck.get("metadata",{}).get(k) != self.metadata[k]
-                    for k in ("version","xml_sha256","history","frame_dim","network_size")):
+                    for k in ("version","xml_sha256","history","frame_dim","actor_hidden","wm_hidden")):
                 raise ValueError("initial velocity policy robot/architecture contract differs")
             self.policy.load_state_dict(ck["policy"])
         if args.resume:

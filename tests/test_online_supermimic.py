@@ -126,7 +126,7 @@ def test_real_physics_online_loop_and_resume(robot_xml, tmp_path, seed):
         "--backend", "mujoco", "--device", "cpu", "--num-envs", "2", "--iterations", "2",
         "--collect-steps", "4", "--wm-updates", "2", "--policy-updates", "1", "--warmup-iterations", "1",
         "--batch-size", "4", "--wm-horizon", "2", "--horizon", "2", "--goal-horizon", "2",
-        "--replay-capacity", "8", "--network-size", "32", "--torch-threads", "2", "--seed", str(seed),
+        "--replay-capacity", "8", "--wm-hidden", "32,32", "--actor-hidden", "32,32", "--critic-hidden", "32,32", "--torch-threads", "2", "--seed", str(seed),
         "--output-dir", str(tmp_path / "run")])
     trainer = Trainer(args)
     assert trainer.shape.history == 3 and trainer.history.shape == (2, 3, 42)

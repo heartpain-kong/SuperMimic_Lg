@@ -152,6 +152,13 @@ def build_command(data, root, run_dir):
                                 "--depth-feat", str(spec["feat"]), "--depth-noise", str(spec["noise"]),
                                 "--depth-dropout", str(spec["dropout"]),
                                 "--depth-latency", str(spec["latency"])]
+                for field, flag in (("wm_hidden", "wm-hidden"), ("actor_hidden", "actor-hidden"),
+                                    ("critic_hidden", "critic-hidden")):
+                    value = str(data.get(field, "") or "").strip()
+                    if value:
+                        from .config import parse_hidden
+                        parse_hidden(value, field)
+                        command += ["--" + flag, value]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
                     ("history", "history", 3, 128),

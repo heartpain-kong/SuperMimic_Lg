@@ -24,7 +24,7 @@ def test_height_patch_slopes_and_gradients_and_elevation_invariance():
     torch.testing.assert_close(height,torch.tensor([[.08],[-.01]]),atol=1e-6,rtol=1e-6)
     height.sum().backward()
     torch.testing.assert_close(xy.grad,torch.tensor([[[.2,.1]],[[.2,.1]]]),atol=1e-6,rtol=1e-6)
-    wm=VelocityWorldModel(16)
+    wm=VelocityWorldModel((16, 16))
     before=wm.features(state,context)
     translated=state.clone();translated[:,:3]+=torch.tensor([10.,-7.,4.])
     patch=context.clone();patch[:,:3]+=torch.tensor([10.,-7.,4.]);patch[:,4:]+=4.
@@ -37,7 +37,7 @@ def test_height_patch_slopes_and_gradients_and_elevation_invariance():
 
 def test_contact_model_gradients_and_actor_has_no_terrain_input():
     state,context=state_and_patch()
-    wm=VelocityWorldModel(16)
+    wm=VelocityWorldModel((16, 16))
     action=torch.zeros(2,12,requires_grad=True)
     predicted=wm.step(state,action,context)
     assert predicted.shape==(2,42)
@@ -45,7 +45,7 @@ def test_contact_model_gradients_and_actor_has_no_terrain_input():
     assert torch.isfinite(action.grad).all() and action.grad.abs().sum()>0
     obs=frame(state,torch.zeros(2,12),torch.tensor([[.5,0.,0.]]*2),phase_at(torch.zeros(2)))
     assert obs.shape==(2,47)
-    assert VelocityPolicy(3,16)(obs[:,None].repeat(1,3,1)).shape==(2,12)
+    assert VelocityPolicy(3, (16, 16))(obs[:,None].repeat(1,3,1)).shape==(2,12)
 
 
 def test_velocity_replay_masks_post_reset_and_preserves_terminal_target():
@@ -152,7 +152,7 @@ def test_reference_free_real_physics_training_and_resume(tmp_path,seed):
     from supermimic_lg.scripts.train_velocity import VelocityTrainer
     args=parser().parse_args(['--task','velocity','--robot-xml',xml,'--backend','mujoco','--device','cpu',
         '--num-envs','2','--iterations','2','--collect-steps','4','--wm-updates','1','--policy-updates','1',
-        '--warmup-iterations','1','--batch-size','4','--network-size','16','--horizon','2','--wm-horizon','2',
+        '--warmup-iterations','1','--batch-size','4','--wm-hidden', '16,16', '--actor-hidden', '16,16', '--critic-hidden', '16,16','--horizon','2','--wm-horizon','2',
         '--episode-steps','4','--seed',str(seed),'--output-dir',str(tmp_path/'run'),
         '--command-mode','fixed','--command-vx','.4','--command-vy','0','--command-yaw','0',
         '--standing-fraction','0','--reward-velocity','3','--swing-height','.09'])

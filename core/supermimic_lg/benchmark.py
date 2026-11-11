@@ -40,18 +40,18 @@ class CheckpointActor:
         self.metadata = ck["metadata"]
         if self.metadata["xml_sha256"] != digest(xml):
             raise ValueError("benchmark robot XML differs from checkpoint")
-        if self.metadata.get("version") != 2:
-            raise ValueError("benchmark needs a version-2 velocity checkpoint (running normalisers); retrain it")
+        if self.metadata.get("version") != 3:
+            raise ValueError("benchmark needs a version-3 velocity checkpoint (normalisers and hidden layers); retrain it")
         self.history = self.metadata["history"]
         self.depth = self.metadata.get("depth")
         self.depth_feat = 0 if not self.depth else int(self.depth["feat"])
-        self.policy = VelocityPolicy(self.history, self.metadata["network_size"], self.depth_feat).to(device).eval()
+        self.policy = VelocityPolicy(self.history, self.metadata["actor_hidden"], self.depth_feat).to(device).eval()
         self.policy.load_state_dict(ck["policy"])
         self.encoder = None
         if self.depth:
             from .depth import DepthEncoder
             from .velocity_task import VelocityWorldModel
-            world = VelocityWorldModel(self.metadata["network_size"], DepthEncoder(self.depth))
+            world = VelocityWorldModel(self.metadata["wm_hidden"], DepthEncoder(self.depth))
             world.load_state_dict(ck["wm"])
             self.encoder = world.encoder.to(device).eval()
         self.training_seconds = ck.get("training_seconds")

@@ -79,9 +79,9 @@ python -m supermimic_lg.scripts.train_supermimic \
 - 训练与想象都假设相机外参固定；噪声、丢帧和延迟已可配置，但**外参标定误差、运动模糊和真实相机的非高斯误差仍未建模**，真机部署前仍需实测校准。
 - 深度改变了策略输入维度，旧检查点会因 `metadata` 不一致被拒绝，需重新训练。
 
-## v2：对照 xmimic 修正 actor 与 world model
+## v3：对照 xmimic 修正 actor、world model 与网络规模
 
-速度模式的 `metadata.version` 已升到 **2**，旧检查点（v1）会被拒绝，需要重新训练。这一版按 `xmimic-main` 参考实现（`xmimic/nets.py`、`algorithm.py`）改了三处核心：
+速度模式的 `metadata.version` 已升到 **3**，旧检查点（v1/v2）会被拒绝，需要重新训练。这一版按 `xmimic-main` 参考实现（`xmimic/nets.py`、`algorithm.py`）改了三处核心：
 
 **世界模型**
 
@@ -111,6 +111,31 @@ python -m supermimic_lg.scripts.train_supermimic \
 - 每次策略更新后做 **2 轮 × 4 个小批量**回归，而不是一次全量 MSE。
 
 没有照搬的部分：motion encoder / goal 编码（速度模式没有参考动作）、policy EMA、左右镜像增强、多 GPU 拆分。这些在速度任务上不是瓶颈。
+
+
+
+### 网络规模
+
+之前的默认值是 `128×128×128` 的世界模型和 `128` 宽的两层 actor/critic，比社区实现小一到两个数量级（xmimic 的 WM 是 `1024,1024,1024`，HIM 的 actor 首层就是 512）。现在按参考实现把默认值放大：
+
+| 组件 | 之前 | 现在 | 参数量（旧 → 新） |
+|---|---|---|---:|
+| world model | 128×3 | **1024×3** | 74,153 → **2,427,945** |
+| actor | 128×128 | **512,256,128** | 36,236 → **238,476** |
+| critic | 128×128 | **512,256,128** | 33,281 → **230,913** |
+| 合计 | — | — | 0.5 MB → **11.1 MB**（fp32 权重） |
+
+容量在这台机器上从来不是瓶颈：三个网络加起来只有 11 MB，真正吃显存的是回放缓存和 mjlab 仿真。所以“模型太小”确实是一个真问题，而不是显存取舍。
+
+改法：
+
+```bash
+--wm-hidden 1024,1024,1024      # 世界模型隐藏层，逗号分隔
+--actor-hidden 512,256,128
+--critic-hidden 512,256,128
+```
+
+工作台「网络结构（高级）」里有对应三个输入框。更换隐藏层会让旧检查点失效（`metadata` 里记录了这三个列表）。
 
 
 
@@ -167,7 +192,7 @@ CPU 验证同样不需要 NPZ：
 python -m supermimic_lg.scripts.train_supermimic \
   --task velocity --mjlab-root /path/to/unitree_rl_mjlab_lgdog \
   --backend mujoco --device cpu --terrain stairs_up \
-  --num-envs 2 --iterations 20 --batch-size 8 --network-size 32 \
+  --num-envs 2 --iterations 20 --batch-size 8 --wm-hidden 32,32 --actor-hidden 32,32 \
   --collect-steps 8 --wm-updates 2 --policy-updates 1 \
   --horizon 4 --warmup-iterations 5 --output-dir logs/velocity_cpu
 ```
@@ -226,7 +251,7 @@ python -m supermimic_lg.scripts.benchmark_velocity \
 ```bash
 COMMON=(--mjlab-root /home/heartpain/mjlab/unitree_rl_mjlab_lgdog
         --terrain rough --device cuda:0 --num-envs 64 --history 3
-        --network-size 128 --collect-steps 16 --episode-steps 500
+        --collect-steps 16 --episode-steps 500
         --torch-threads 4
         --command-vx 0.6 --command-vy 0.3 --command-yaw 0.6
         --seed 42 --iterations 20000)

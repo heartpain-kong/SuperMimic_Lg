@@ -117,3 +117,16 @@ def unitree_go2_spec() -> RobotSpec:
         action_scale=0.25,
         dt=0.02,
     )
+
+def parse_hidden(text, name="hidden"):
+    """Parse ``"1024,1024,1024"`` (or a sequence) into layer widths."""
+    if isinstance(text, (tuple, list)):
+        values = tuple(int(v) for v in text)
+    else:
+        parts = [part for part in str(text).replace(" ", "").split(",") if part]
+        if not parts:
+            raise ValueError(f"{name} must list at least one layer size")
+        values = tuple(int(part) for part in parts)
+    if any(value <= 0 for value in values):
+        raise ValueError(f"{name} layer sizes must be positive")
+    return values

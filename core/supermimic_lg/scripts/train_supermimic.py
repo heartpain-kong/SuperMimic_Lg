@@ -56,17 +56,19 @@ class Trainer:
         self.fk = LgDogKinematics(load_lgdog_model(self.xml), args.device)
         self.motion.validate_kinematics(self.fk)
         self.shape = PolicyShape(12, 13, history=args.history, goal_horizon=args.goal_horizon)
-        self.wm_cfg = WorldModelConfig(hidden=(args.network_size,) * 3)
+        self.wm_cfg = WorldModelConfig(hidden=args.wm_hidden)
         self.wm = WorldModel(self.robot, cfg=self.wm_cfg, device=args.device)
-        self.policy = Policy(self.shape, (args.network_size,) * 2, (args.network_size,) * 2).to(args.device)
-        self.critic = Critic(self.shape, 16, hidden=(args.network_size,) * 2).to(args.device)
+        self.policy = Policy(self.shape, args.actor_hidden, args.actor_hidden).to(args.device)
+        self.critic = Critic(self.shape, 16, hidden=args.critic_hidden).to(args.device)
         self.wm_trainer = WorldModelTrainer(self.wm)
         self.ac = ImaginedActorCritic(self.wm, self.policy, self.critic, ActorCriticConfig(horizon=args.horizon))
         self.replay = OnlineReplay(args.replay_capacity, args.num_envs, (self.shape.history, self.shape.obs_dim), args.device)
         self.iteration = self.wm_updates = self.policy_updates = 0
         self.collected_transitions = 0
         self.metadata = {"motion_sha256": file_hash(args.motion_file), "xml_sha256": file_hash(self.xml),
-                         "policy_shape": asdict(self.shape), "network_size": args.network_size,
+                         "policy_shape": asdict(self.shape),
+                         "wm_hidden": list(args.wm_hidden), "actor_hidden": list(args.actor_hidden),
+                         "critic_hidden": list(args.critic_hidden),
                          "terrain": args.terrain,
                          "state_convention": "root_link_pos_w,quat_wxyz,q,lin_vel_w,ang_vel_b,qd",
                          "context_mode": "fixed_friction_0.6_zero_encoder_bias_zero_com_offset"}
@@ -251,8 +253,15 @@ def parser():
     for name, default in (("num-envs", 64), ("iterations", 10000), ("collect-steps", 16), ("wm-updates", 10),
                           ("policy-updates", 2), ("warmup-iterations", 5), ("batch-size", 128), ("wm-horizon", 4),
                           ("horizon", 8), ("history", 3), ("goal-horizon", 10), ("replay-capacity", 256),
-                          ("network-size", 128), ("episode-steps", 500), ("save-interval", 10), ("torch-threads", 4)):
+                          ("episode-steps", 500), ("save-interval", 10), ("torch-threads", 4)):
         p.add_argument("--" + name, type=int, default=default)
+    from supermimic_lg.config import parse_hidden
+    p.add_argument("--wm-hidden", type=lambda text: parse_hidden(text, "wm-hidden"),
+                   default=(1024, 1024, 1024), help="world-model hidden widths, comma separated")
+    p.add_argument("--actor-hidden", type=lambda text: parse_hidden(text, "actor-hidden"),
+                   default=(512, 256, 128), help="policy hidden widths, comma separated")
+    p.add_argument("--critic-hidden", type=lambda text: parse_hidden(text, "critic-hidden"),
+                   default=(512, 256, 128), help="critic hidden widths, comma separated")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--action-noise", type=float, default=.1)
     p.add_argument("--depth", action="store_true",
@@ -280,7 +289,7 @@ def main():
     p = parser()
     args = p.parse_args()
     positive = ("num_envs", "iterations", "collect_steps", "wm_updates", "policy_updates", "warmup_iterations", "batch_size",
-                "wm_horizon", "horizon", "history", "goal_horizon", "replay_capacity", "network_size", "episode_steps", "save_interval", "torch_threads")
+                "wm_horizon", "horizon", "history", "goal_horizon", "replay_capacity", "episode_steps", "save_interval", "torch_threads")
     if any(getattr(args, x) <= 0 for x in positive) or args.replay_capacity < args.wm_horizon or not 0 <= args.action_noise <= 1:
         p.error("sizes/counts must be positive, replay capacity >= wm horizon, action noise in [0,1]")
     if args.device.startswith("cuda") and not torch.cuda.is_available():

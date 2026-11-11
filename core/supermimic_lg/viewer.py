@@ -114,7 +114,7 @@ class PolicyPlayback:
         self.shape = PolicyShape(**metadata["policy_shape"])
         if (self.shape.n_joints, self.shape.n_bodies) != (12, 13):
             raise ValueError("观看入口目前只支持 LgDog1 的 12 关节/13 body 策略")
-        hidden = (int(metadata["network_size"]),) * 2
+        hidden = tuple(metadata["actor_hidden"])
         self.policy = Policy(self.shape, hidden, hidden).eval()
         self.policy.load_state_dict(ck["policy"])
         self.motion = MotionSequence(motion_file, self.shape.goal_horizon, "cpu")
