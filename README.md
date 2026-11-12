@@ -2,7 +2,9 @@
 
 这个目录把 `E:\足式机器人\SuperMimic\代码\SuperMimic-Reproduced_CuboiLeo` 的核心思路整理成可复用的四足实现：学习一个带上下文条件的可微动力学模型，用软终止概率保留 BPTT 梯度，再在模型中进行短视野想象更新。状态、动作、目标和跟踪奖励都按机器人维度生成，默认提供 Unitree Go2 与现有 `E:\mjlab\unitree_rl_mjlab_lgdog` 的 LgDog1 映射。
 
-当前 **0.3.0**（SuperMimic modular v5 / XMimic-Lg v6） 已把任务、网络、回放、学习核心与训练生命周期拆开，支持独立模型/策略批量、UTD 调度和可审计的更新计数。结构、参考源码、兼容入口与检查点迁移见 [重构说明](docs/REFACTOR_2026-11-12.md)。
+当前 **0.3.1**（SuperMimic modular v5 / XMimic-Lg v6） 已把任务、网络、回放、学习核心与训练生命周期拆开，支持独立模型/策略批量、UTD 调度和可审计的更新计数。结构、参考源码、兼容入口与检查点迁移见 [重构说明](docs/REFACTOR_2026-11-12.md)。
+
+0.3.1 修复 CUDA/BF16 下概率 BCE 导致采集和世界模型训练退出的问题：接触损失显式退出 autocast 并用 FP32 计算，网络继续使用所选精度。更新后重启工作台，详见 [BF16 修复说明](docs/XMIMIC.md)。
 
 新增可选 **XMimic-Lg · PyTorch**（Muon/Adam、EMA、结构化动力学），并保留原版 **JAX/G1** 源码与独立启动器。工作台可切换训练算法；入口、默认值与适配边界见 [XMimic 使用说明](docs/XMIMIC.md)。
 

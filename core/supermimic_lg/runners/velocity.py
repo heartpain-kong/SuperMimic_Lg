@@ -5,12 +5,12 @@ import math
 import time
 from pathlib import Path
 import torch
-from torch.nn import functional as F
 
 from supermimic_lg.checkpointing import atomic_save, file_hash, resume_contract, policy_state, VELOCITY_ALGORITHMS
 from supermimic_lg.learning.velocity import VelocityLearner, VelocityLearningConfig
 from supermimic_lg.learning.schedule import CollectionSchedule
 from supermimic_lg.learning.optim import optimizer_step
+from supermimic_lg.learning.losses import contact_bce
 from supermimic_lg.tasks.velocity.task import VelocityTask
 from supermimic_lg.velocity_objective import objective_from, command_settings, sample_commands
 from supermimic_lg.simulator import resolve_robot_xml
@@ -247,8 +247,7 @@ class VelocityTrainer:
                 next_context = torch.cat((next_context, self.depth_feature), -1)
             predicted = self.wm.step(state, executed, context)
             prediction_error = self.wm.spec.normalized_sq_error(predicted[:, :37], next_state[:, :37])
-            contact_error = F.binary_cross_entropy(predicted[:, 37:].clamp(1e-6,1-1e-6),
-                                                   next_state[:, 37:], reduction="none").mean(-1)
+            contact_error = contact_bce(predicted[:, 37:], next_state[:, 37:])
             failed = failure(next_state, next_context)
             self.steps += 1
             reset = failed | (self.steps >= self.args.episode_steps)

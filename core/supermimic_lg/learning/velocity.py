@@ -5,6 +5,7 @@ import torch
 from torch.nn import functional as F
 
 from .optim import frozen_parameters, optimizer_step
+from .losses import contact_bce
 from .returns import discounted_objective, lambda_returns
 from .rollout import imagine
 from ..tasks.velocity.schema import FRAME_DIM
@@ -92,8 +93,7 @@ class VelocityLearner:
             state = torch.where(rows["valid"][t, :, None].bool(), state, rows["next"][t].detach())
             physical.append(self.wm.prediction_error(state, rows["next"][t]) if cfg.wm_loss_scale == "increment"
                             else self.wm.spec.normalized_sq_error(state[:, :37], rows["next"][t, :, :37]))
-            contacts.append(F.binary_cross_entropy(state[:, 37:].clamp(1e-6, 1-1e-6),
-                rows["next"][t, :, 37:], reduction="none").mean(-1))
+            contacts.append(contact_bce(state[:, 37:], rows["next"][t, :, 37:]))
         valid = rows["valid"]
         state_loss = (torch.stack(physical)*valid).sum()/valid.sum().clamp_min(1.)
         contact_loss = (torch.stack(contacts)*valid).sum()/valid.sum().clamp_min(1.)

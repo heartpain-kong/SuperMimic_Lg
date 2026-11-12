@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 
 import torch
-from torch.nn import functional as F
+from supermimic_lg.learning.losses import contact_bce
 
 from supermimic_lg.simulator import resolve_robot_xml
 from supermimic_lg.velocity_physics import VelocitySimulator
@@ -84,8 +84,7 @@ def fit(replay, validation, updates, seed, legacy, adaptive=False):
             if adaptive:
                 physical = (wm.spec.error_vector(state[:, :37], rows["next"][t, :, :37])*
                             fixed_scale/error_norm.std().clamp_min(floor)).square().mean(-1)
-            contact = F.binary_cross_entropy(state[:, 37:].clamp(1e-6, 1-1e-6),
-                                             rows["next"][t, :, 37:], reduction="none").mean(-1)
+            contact = contact_bce(state[:, 37:], rows["next"][t, :, 37:])
             losses.append(physical + contact)
         loss = (torch.stack(losses)*rows["valid"]).sum()/rows["valid"].sum().clamp_min(1)
         optimizer.zero_grad(set_to_none=True)

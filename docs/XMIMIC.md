@@ -27,6 +27,25 @@ python -m supermimic_lg.scripts.train_xmimic \
 
 或使用公共入口 `python -m supermimic_lg.cli --algorithm xmimic --task velocity ...`。现有 `--algorithm supermimic` 和旧模块入口仍保留。上例是用于 GPU 复测的起点，未证明能在 20 分钟内收敛，也没有实测 4060 显存峰值。
 
+### 0.3.1：BF16 启动修复
+
+0.3.0 的 CUDA/BF16 训练可能在初始采集 `contact_error` 处退出，报 `binary_cross_entropy and BCELoss are unsafe to autocast`。世界模型拟合也有同类调用。即使概率张量本身已转为 FP32，外层 CUDA autocast 仍会拒绝 BCE；只改张量类型不够。
+
+0.3.1 用共享的 `learning.losses.contact_bce` 显式退出 autocast，再以 FP32 转换、限幅并计算概率 BCE。采集统计、世界模型多步训练和离线消融脚本使用同一实现；梯度仍回传到接触预测网络。模型结构、参数名与检查点版本保持兼容。
+
+在原训练环境中更新，再重启工作台并新建训练；本次失败发生于首轮前，可将续训路径留空：
+
+```bash
+conda activate unitree_rl_mjlab
+cd /home/heartpain/SuperMimic
+git pull --ff-only origin main
+python -m pip install --no-deps -e .
+```
+
+暂不更新代码时可选择 FP32 绕过该报错。此兼容问题不要求修改奖励、并行环境数或历史长度。
+
+完整测试 **81 passed, 1 skipped**。CPU 上以真实 BF16 网络和模拟 CUDA 的 BCE 禁用规则验证了两种算法的物理采集、模型反传、策略更新及 XMimic EMA；新增 CUDA 原生测试已提供，本机无 CUDA 因此跳过。详见 [验证记录](validation/2026-11-12_amp_fix_validation.json)。
+
 ### 适配内容
 
 | 项目 | XMimic-Lg 实现 |

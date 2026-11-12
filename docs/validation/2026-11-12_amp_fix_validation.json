@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-12",
+  "package_version": "0.3.1",
+  "incident": {
+    "log_sha256": "418c8a9fbe4f51ef9c9b498b78a3b0409e683ba3b8597dd0c43687893bc5424e",
+    "stage": "initial collection before first iteration",
+    "exception": "RuntimeError: binary_cross_entropy and BCELoss are unsafe to autocast",
+    "precision": "bf16",
+    "gpu": "RTX 4060 Laptop 8 GiB"
+  },
+  "fix": {
+    "loss": "FP32 BCE in explicitly disabled device autocast",
+    "call_sites": [
+      "runners/velocity.py collection diagnostics",
+      "learning/velocity.py differentiable world-model fit",
+      "scripts/validate_velocity_model.py offline ablation"
+    ],
+    "network_precision": "unchanged",
+    "checkpoint_contract": "unchanged"
+  },
+  "tests": {
+    "before_fix": "2 failed: both velocity algorithms enter BCE under autocast",
+    "focused": "4 passed, 1 skipped",
+    "full_suite": "81 passed, 1 skipped, 1 torch.jit deprecation warning",
+    "physical_integration": "MuJoCo with BF16 CPU network matmuls and enforced CUDA-style BCE prohibition; collect + WM backward + actor/critic updates; EMA for XMimic",
+    "boundary_cases": "FP32/BF16 probabilities including zero and one, finite gradients, caller autocast restored",
+    "native_cuda": "test provided; skipped because CUDA unavailable locally"
+  },
+  "runtime": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+    "torch": "2.14.1+cpu",
+    "cuda_available": false
+  },
+  "limitations": [
+    "No native CUDA or actual RTX 4060 rerun was performed locally",
+    "CPU regression does not establish GPU throughput or training convergence"
+  ]
+}
