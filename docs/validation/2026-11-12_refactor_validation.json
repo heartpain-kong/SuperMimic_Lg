@@ -1,0 +1,102 @@
+{
+  "date": "2026-11-12",
+  "package_version": "0.2.0",
+  "training_revision": 5,
+  "tests": {
+    "full_suite_passed": 64,
+    "oom_split_batch_regression_passed": 1
+  },
+  "component_parity": {
+    "VelocityWorldModel": "exact state keys, initialized weights, and outputs",
+    "VelocityPolicy": "exact state keys, initialized weights, and outputs",
+    "VelocityCritic": "exact state keys, initialized weights, and outputs",
+    "task": "exact observations, rewards, reward contributions, soft termination"
+  },
+  "workbench": "PASS: independent batches, UTD, learning rates, preview, persistence, preset clearing, mobile",
+  "wheel": "PASS: independent uv installation, CLI, compatibility imports, model forward, included third-party notices",
+  "runtime": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+    "torch": "2.14.1+cpu",
+    "cuda_available": false
+  },
+  "integration": {
+    "protocol": {
+      "num_envs": 8,
+      "iterations": 40,
+      "update_to_data_ratio": 0.4,
+      "wm_batch_size": 64,
+      "policy_batch_size": 32,
+      "horizon": 16,
+      "wm_horizon": 4,
+      "wm_updates_per_iteration": 4,
+      "policy_updates_per_iteration": 1,
+      "warmup_iterations": 10,
+      "seed": 42
+    },
+    "completed_iterations": 40,
+    "transitions": 800,
+    "optimizer_steps": {
+      "wm": 156,
+      "actor": 31,
+      "critic": 372
+    },
+    "all_metrics_finite": true,
+    "last_metrics": {
+      "real_reward": 2.8345234394073486,
+      "velocity_error_xy_mps": 0.3842135965824127,
+      "yaw_error_rps": 0.3829829692840576,
+      "failures": 0,
+      "episodes": 0,
+      "wm_online_state_error": 0.14989317953586578,
+      "wm_online_contact_error": 0.9179001450538635,
+      "episode_length": 0.0,
+      "terrain_promotions": 0,
+      "terrain_demotions": 0,
+      "action_std": 0.5938075184822083,
+      "policy_action_saturation": 0.0,
+      "policy_raw_action_abs": 0.021502802148461342,
+      "exploration_noise": 0.649,
+      "command_scale": 1.0,
+      "reward/velocity": 1.1104557514190674,
+      "reward/progress": 0.04564427211880684,
+      "reward/yaw": 0.5556223392486572,
+      "reward/upright": 0.4995647668838501,
+      "reward/height": 0.49538442492485046,
+      "reward/gait": 0.12502004206180573,
+      "reward/lift": 0.04483786225318909,
+      "reward/action_rate": -0.03487464413046837,
+      "reward/slip": -0.00249861110933125,
+      "reward/energy": -0.004632824566215277,
+      "reward/joint_limit": 0.0,
+      "reward/trunk_contact": 0.0,
+      "wm/state_loss": 0.21679969131946564,
+      "wm/contact_loss": 0.617777407169342,
+      "policy/actor_objective": 66.7907485961914,
+      "policy/actor_loss": -4.174421787261963,
+      "policy/action_bound_loss": 0.0,
+      "policy/critic_loss": 412.78582763671875,
+      "policy/policy_grad_norm": 0.575451672077179,
+      "policy/survival_end": 0.8350220322608948,
+      "policy/termination_mean": 0.01128074899315834,
+      "iteration": 40,
+      "transitions": 800,
+      "elapsed_s": 60.54699999999866,
+      "time/collect_s": 0.11467780000384664,
+      "time/wm_s": 0.252058300000499,
+      "time/policy_s": 1.3059404999949038,
+      "throughput/transitions_per_s": 14.348260745687941,
+      "collection_steps": 3,
+      "updates/wm": 156,
+      "updates/actor": 31,
+      "updates/critic": 372,
+      "batch_sizes/wm": 64,
+      "batch_sizes/policy": 32,
+      "memory/replay_gib": 0.00260162353515625
+    },
+    "checkpoint_sha256": "4eb36fdde24fe5444e6f33019a54bce085d6adac880de1478393768d6ee1b927"
+  },
+  "limitations": [
+    "CPU integration and numerical validation only",
+    "No CUDA throughput, BF16 GPU validation or locomotion convergence established"
+  ]
+}

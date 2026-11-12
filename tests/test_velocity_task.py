@@ -177,7 +177,16 @@ def test_reference_free_real_physics_training_and_resume(tmp_path,seed):
     assert initialized.iteration==0 and initialized.transitions==0
     for key,value in resumed.policy.state_dict().items():
         torch.testing.assert_close(initialized.policy.state_dict()[key],value)
-    initialized.sim.close()
+    initialized.args.max_training_seconds = 1e-9
+    initialized.run()
+    assert initialized.iteration == 1
+    import json
+    metrics = json.loads((tmp_path/'transfer/metrics.jsonl').read_text().splitlines()[0])
+    assert metrics['time/collect_s'] >= 0 and metrics['time/wm_s'] >= 0
+    assert metrics['updates/wm'] == 1 and metrics['updates/actor'] == 1
+    assert metrics['memory/replay_gib'] > 0
+    assert 0 <= metrics['policy_action_saturation'] <= 1
+    assert torch.load(tmp_path/'transfer/checkpoint.pt', weights_only=True)['iteration'] == 1
 
 def test_oom_hint_halves_memory_dominant_sizes():
     from types import SimpleNamespace
@@ -192,6 +201,10 @@ def test_oom_hint_halves_memory_dominant_sizes():
                     batch_size=1,horizon=1,history=3,terrain="flat",wm_horizon=8))
     assert small["suggested"]["num_envs"]==1 and small["suggested"]["replay_capacity"]==8
     assert small["suggested"]["batch_size"]==1 and small["suggested"]["horizon"]==1
+    args.wm_batch_size=64;args.policy_batch_size=16
+    split=oom_hint(RuntimeError('out of memory'),args)
+    assert split['suggested']['wm_batch_size']==32
+    assert split['suggested']['policy_batch_size']==8
 
 def test_huge_policy_output_cannot_explode_the_imagined_return(tmp_path):
     """Regression: an unbounded linear head used to extrapolate the world model."""
@@ -210,9 +223,13 @@ def test_huge_policy_output_cannot_explode_the_imagined_return(tmp_path):
         with torch.no_grad():
             trainer.policy.net[-1].bias.fill_(50.)
         metrics=trainer.update_policy()
-        assert all(torch.isfinite(torch.tensor(v)) for v in metrics.values())
+        assert all(torch.isfinite(torch.as_tensor(v)) for v in metrics.values())
         assert abs(metrics['policy/actor_objective']) < 1e4
         assert metrics['policy/critic_loss'] < 1e6
+        assert metrics['policy/action_bound_loss'] > 100.
+        # A clamped action alone has zero gradient at bias=50: the range penalty
+        # must actively pull the policy back, while still executing bounded actions.
+        assert (trainer.policy.net[-1].bias < 50.).all()
     finally:
         trainer.sim.close()
 
@@ -234,3 +251,17 @@ def test_progress_reward_is_linear_and_punishes_standing():
     assert float(reverse['progress'].mean())<-0.45               # moving backwards is penalised
     # Standing still costs this much less than tracking, i.e. the term is no longer flat.
     assert float(moving['velocity'].mean())>float(standing['velocity'].mean())
+
+
+def test_velocity_replay_selected_fields_preserve_sequences():
+    replay = VelocityReplay(4, 2, 3, "cpu")
+    for i in range(5):
+        replay.add(**{key: torch.full_like(value[0], float(i)) if key != "reset"
+                      else torch.zeros_like(value[0]) for key, value in replay.rows.items()})
+    torch.manual_seed(5)
+    full = replay.sample(8, 3)
+    torch.manual_seed(5)
+    selected = replay.sample(8, 3, fields=["state", "action"])
+    assert set(selected) == {"state", "action", "reset", "valid"}
+    for key in selected:
+        torch.testing.assert_close(selected[key], full[key])

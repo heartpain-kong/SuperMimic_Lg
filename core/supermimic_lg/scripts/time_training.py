@@ -11,7 +11,7 @@ from supermimic_lg.benchmark import hardware, digest
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--algorithm",choices=("supermimic","him_ppo"),required=True)
+    p.add_argument("--algorithm",choices=("supermimic","xmimic","him_ppo"),required=True)
     p.add_argument("--task-config",type=Path,help="saved actual training config, preserved as evidence")
     p.add_argument("--output",type=Path,required=True)
     p.add_argument("command",nargs=argparse.REMAINDER)

@@ -1,0 +1,119 @@
+{
+  "baseline": {
+    "wall_seconds": 175.71899999999732,
+    "last20": {
+      "real_reward": 2.815824329853058,
+      "velocity_error_xy_mps": 0.46223274767398836,
+      "action_std": 0.8617831679992378
+    },
+    "evaluation": {
+      "policy": {
+        "velocity_error_xy_mps": 0.41139577881495154,
+        "yaw_error_rps": 0.020980768968797442,
+        "command_aligned_progress_m": -0.11241693230726924,
+        "survival_seconds": 10.0,
+        "action_saturation": 0.9694444445768992,
+        "raw_action_abs": 2.287574248900016,
+        "failure_rate": 0.0
+      },
+      "zero_action": {
+        "velocity_error_xy_mps": 0.39974301598469414,
+        "yaw_error_rps": 0.00012422165676683033,
+        "command_aligned_progress_m": 0.0025619174197828443,
+        "survival_seconds": 10.0,
+        "action_saturation": 0.0,
+        "raw_action_abs": 0.0,
+        "failure_rate": 0.0
+      }
+    }
+  },
+  "fixed": {
+    "wall_seconds": 169.14100000000326,
+    "last20": {
+      "real_reward": 2.9208377838134765,
+      "velocity_error_xy_mps": 0.4315024450421333,
+      "action_std": 0.8219275057315827
+    },
+    "evaluation": {
+      "policy": {
+        "velocity_error_xy_mps": 0.5209400226982931,
+        "yaw_error_rps": 0.40654682026433875,
+        "command_aligned_progress_m": 0.09532847377583191,
+        "survival_seconds": 1.28,
+        "action_saturation": 0.6410590371427437,
+        "raw_action_abs": 1.1616031381612022,
+        "failure_rate": 1.0
+      },
+      "zero_action": {
+        "velocity_error_xy_mps": 0.39974301598469414,
+        "yaw_error_rps": 0.00012422165676683033,
+        "command_aligned_progress_m": 0.0025619174197828443,
+        "survival_seconds": 10.0,
+        "action_saturation": 0.0,
+        "raw_action_abs": 0.0,
+        "failure_rate": 0.0
+      }
+    }
+  },
+  "protocol": {
+    "baseline_commit": "e1dbee0",
+    "training_seed": 42,
+    "num_envs": 8,
+    "iterations": 120,
+    "collect_steps": 8,
+    "batch_size": 64,
+    "hidden": [
+      64,
+      64
+    ],
+    "horizon": 8,
+    "wm_horizon": 4,
+    "wm_updates": 4,
+    "policy_updates": 2,
+    "warmup_iterations": 20,
+    "history": 3,
+    "episode_steps": 100,
+    "command": [
+      0.4,
+      0,
+      0
+    ],
+    "evaluation_seeds": [
+      0,
+      1,
+      42
+    ],
+    "evaluation_seconds": 10,
+    "backend": "mujoco",
+    "device": "cpu"
+  },
+  "interpretation": "Default corrections retained 10s survival, but did not learn useful locomotion in 120 CPU iterations. Increment loss worsened survival and is experimental/off. Wall times are diagnostic, not a GPU speed claim.",
+  "default_fixed_loss": {
+    "wall_seconds": 173.90699999999924,
+    "last20": {
+      "real_reward": 2.8117513775825502,
+      "velocity_error_xy_mps": 0.40270873755216596,
+      "action_std": 0.8654062956571579
+    },
+    "evaluation": {
+      "policy": {
+        "velocity_error_xy_mps": 0.4025237452586492,
+        "yaw_error_rps": 0.06428320413661033,
+        "command_aligned_progress_m": -0.020333146421402642,
+        "survival_seconds": 10.0,
+        "action_saturation": 0.7929444503386814,
+        "raw_action_abs": 1.5537961038425563,
+        "failure_rate": 0.0
+      },
+      "zero_action": {
+        "velocity_error_xy_mps": 0.39974301598469414,
+        "yaw_error_rps": 0.00012422165676683033,
+        "command_aligned_progress_m": 0.0025619174197828443,
+        "survival_seconds": 10.0,
+        "action_saturation": 0.0,
+        "raw_action_abs": 0.0,
+        "failure_rate": 0.0
+      }
+    }
+  }
+}

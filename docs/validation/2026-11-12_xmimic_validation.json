@@ -1,0 +1,348 @@
+{
+  "date": "2026-11-12",
+  "package_version": "0.3.0",
+  "training_revision": 6,
+  "tests": {
+    "full_suite_passed": 77,
+    "warnings": 1,
+    "warning": "upstream torch.jit.script deprecation"
+  },
+  "runtime": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+    "torch": "2.14.1+cpu",
+    "cuda_available": false
+  },
+  "native": {
+    "source": {
+      "verified": true,
+      "files": 33,
+      "changed_or_missing": []
+    },
+    "ready": false,
+    "system": "Windows",
+    "motion_format": "upstream G1 CSV",
+    "missing_or_mismatched_dependencies": {
+      "jax": {
+        "expected": "0.7.2",
+        "installed": null
+      },
+      "jaxlib": {
+        "expected": "0.7.2",
+        "installed": null
+      },
+      "jax-cuda12-plugin": {
+        "expected": "0.7.2",
+        "installed": null
+      },
+      "jax-cuda12-pjrt": {
+        "expected": "0.7.2",
+        "installed": null
+      },
+      "mujoco": {
+        "expected": "3.17.0",
+        "installed": "3.5.0"
+      },
+      "mujoco-mjx": {
+        "expected": "3.17.0",
+        "installed": null
+      },
+      "mujoco-warp": {
+        "expected": "3.17.0",
+        "installed": "3.5.0"
+      },
+      "warp-lang": {
+        "expected": "1.19.0",
+        "installed": "1.12.0"
+      },
+      "numpy": {
+        "expected": "2.4.6",
+        "installed": "2.5.4"
+      },
+      "nvidia-cublas-cu12": {
+        "expected": "12.9.3.13",
+        "installed": null
+      },
+      "nvidia-cuda-cupti-cu12": {
+        "expected": "12.9.79",
+        "installed": null
+      },
+      "nvidia-cuda-nvcc-cu12": {
+        "expected": "12.9.86",
+        "installed": null
+      },
+      "nvidia-cuda-nvrtc-cu12": {
+        "expected": "12.9.86",
+        "installed": null
+      },
+      "nvidia-cuda-runtime-cu12": {
+        "expected": "12.9.79",
+        "installed": null
+      },
+      "nvidia-cudnn-cu12": {
+        "expected": "9.28.0.42",
+        "installed": null
+      },
+      "nvidia-cufft-cu12": {
+        "expected": "11.4.1.4",
+        "installed": null
+      },
+      "nvidia-cusolver-cu12": {
+        "expected": "11.7.5.82",
+        "installed": null
+      },
+      "nvidia-cusparse-cu12": {
+        "expected": "12.5.10.65",
+        "installed": null
+      },
+      "nvidia-nccl-cu12": {
+        "expected": "2.32.3",
+        "installed": null
+      },
+      "nvidia-nvjitlink-cu12": {
+        "expected": "12.9.86",
+        "installed": null
+      },
+      "nvidia-nvshmem-cu12": {
+        "expected": "3.8.0",
+        "installed": null
+      },
+      "nvidia-cuda-cccl-cu12": {
+        "expected": "12.9.27",
+        "installed": null
+      }
+    },
+    "g1_meshes_present": false,
+    "motion_data_present": false,
+    "gpu_runtime_validation": "not performed; metadata/readiness check does not initialize JAX or test CUDA"
+  },
+  "wheel": {
+    "module": "E:\\SuperMimic_Lg\\logs\\refactor_validation\\wheel_install03\\supermimic_lg\\__init__.py",
+    "version": "0.3.0",
+    "source": {
+      "verified": true,
+      "files": 33,
+      "changed_or_missing": []
+    },
+    "algorithm": "xmimic",
+    "horizon": 32,
+    "ema": 0.995,
+    "entry_points": [
+      "supermimic-lg-register-lgdog",
+      "supermimic-lg-smoke",
+      "supermimic-lg-train",
+      "supermimic-lg-train-wm",
+      "supermimic-lg-workbench",
+      "supermimic-lg-xmimic",
+      "supermimic-xmimic-native"
+    ],
+    "sha256": "e18552659a1c51cc766b39b8207d321543ea0a274da0e9cfb9fdb1305a1854d5"
+  },
+  "workbench": {
+    "passed": true,
+    "browser": "headless Microsoft Edge",
+    "checks": [
+      "algorithm switch",
+      "XMimic defaults",
+      "preview argv",
+      "depth guard",
+      "configuration persistence",
+      "4060 preset",
+      "390px layout",
+      "SuperMimic restoration"
+    ],
+    "javascript_errors": []
+  },
+  "playback": {
+    "task": "velocity",
+    "checkpoint": "E:\\SuperMimic_Lg\\logs\\refactor_validation\\xmimic_h32\\checkpoint.pt",
+    "checkpoint_iteration": 20,
+    "algorithm": "xmimic_velocity_bptt",
+    "policy_source": "ema",
+    "history": 3,
+    "frame_dim": 47,
+    "frame": 5,
+    "motion_frames": 501,
+    "steps": 5,
+    "resets": 0,
+    "root_height": 0.30263149379530996,
+    "training_terrain": "flat",
+    "playback_terrain": "flat",
+    "command": [
+      0.4000000059604645,
+      0.0,
+      0.0
+    ],
+    "pending_reset": false
+  },
+  "integration": {
+    "protocol": {
+      "num_envs": 4,
+      "iterations": 20,
+      "warmup_steps": 16,
+      "update_to_data_ratio": 0.4,
+      "horizon": 32,
+      "wm_horizon": 8,
+      "wm_batch_size": 16,
+      "policy_batch_size": 16,
+      "wm_updates_per_iteration": 2,
+      "policy_updates_per_iteration": 1,
+      "critic_epochs": 2,
+      "critic_minibatches": 4,
+      "seeds": [
+        42
+      ]
+    },
+    "transitions": 264,
+    "optimizer_steps": {
+      "wm": 40,
+      "actor": 20,
+      "critic": 160
+    },
+    "ema_updates": 20,
+    "all_metrics_finite": true,
+    "last_metrics": {
+      "real_reward": 3.268768310546875,
+      "velocity_error_xy_mps": 0.3325801193714142,
+      "yaw_error_rps": 0.23914790153503418,
+      "failures": 0,
+      "episodes": 0,
+      "wm_online_state_error": 0.2856334149837494,
+      "wm_online_contact_error": 1.6590250730514526,
+      "episode_length": 0.0,
+      "terrain_promotions": 0,
+      "terrain_demotions": 0,
+      "action_std": 0.6754593849182129,
+      "policy_action_saturation": 0.0,
+      "policy_raw_action_abs": 0.07085999846458435,
+      "exploration_noise": 0.829,
+      "command_scale": 1.0,
+      "reward/velocity": 1.2816799879074097,
+      "reward/progress": 0.10042306035757065,
+      "reward/yaw": 0.7670905590057373,
+      "reward/upright": 0.49942612648010254,
+      "reward/height": 0.4941626489162445,
+      "reward/gait": 0.13785934448242188,
+      "reward/lift": 0.044357895851135254,
+      "reward/action_rate": -0.0481494776904583,
+      "reward/slip": -0.0015959214651957154,
+      "reward/energy": -0.006485859397798777,
+      "reward/joint_limit": 0.0,
+      "reward/trunk_contact": 0.0,
+      "wm/state_loss": 1.007514476776123,
+      "wm/contact_loss": 1.0803115367889404,
+      "policy/actor_objective": 25.15891456604004,
+      "policy/actor_loss": -25.15891456604004,
+      "policy/action_bound_loss": 0.0,
+      "policy/critic_loss": 21.324195861816406,
+      "policy/policy_grad_norm": 1.6559687852859497,
+      "policy/survival_end": 5.924607050615538e-13,
+      "policy/termination_mean": 0.5448638200759888,
+      "xmimic/ema_updates": 20,
+      "xmimic/wm_lr": 0.00039999999447033703,
+      "xmimic/actor_lr": 0.0015999999778813481,
+      "iteration": 20,
+      "transitions": 264,
+      "elapsed_s": 53.1559999999954,
+      "time/collect_s": 0.0852630000008503,
+      "time/wm_s": 0.17442299999675015,
+      "time/policy_s": 2.427557399998477,
+      "throughput/transitions_per_s": 4.46554264493403,
+      "collection_steps": 3,
+      "updates/wm": 40,
+      "updates/actor": 20,
+      "updates/critic": 160,
+      "batch_sizes/wm": 16,
+      "batch_sizes/policy": 16,
+      "memory/replay_gib": 0.001300811767578125
+    },
+    "checkpoint_sha256": "ab41e6a7d6306ae4ea08d012754f60f296390110d24cb69397fba2183227439f"
+  },
+  "independent_evaluation": {
+    "raw": {
+      "protocol": {
+        "terrain": "flat",
+        "level": 1,
+        "seeds": [
+          0,
+          1,
+          42
+        ],
+        "seconds": 5.0,
+        "fixed_command": [
+          0.4,
+          0.0,
+          0.0
+        ],
+        "backend": "mujoco",
+        "action_noise": 0.0,
+        "depth_sensor": null
+      },
+      "results": {
+        "policy": {
+          "velocity_error_xy_mps": 0.4008101094961167,
+          "yaw_error_rps": 0.0009502410318770368,
+          "command_aligned_progress_m": -0.003957663788414815,
+          "survival_seconds": 5.0,
+          "action_saturation": 0.0,
+          "raw_action_abs": 0.07804486998915672,
+          "failure_rate": 0.0
+        },
+        "zero_action": {
+          "velocity_error_xy_mps": 0.3998686224222183,
+          "yaw_error_rps": 0.00022883175237711838,
+          "command_aligned_progress_m": 0.0006468581418204167,
+          "survival_seconds": 5.0,
+          "action_saturation": 0.0,
+          "raw_action_abs": 0.0,
+          "failure_rate": 0.0
+        }
+      }
+    },
+    "ema": {
+      "protocol": {
+        "terrain": "flat",
+        "level": 1,
+        "seeds": [
+          0,
+          1,
+          42
+        ],
+        "seconds": 5.0,
+        "fixed_command": [
+          0.4,
+          0.0,
+          0.0
+        ],
+        "backend": "mujoco",
+        "action_noise": 0.0,
+        "depth_sensor": null
+      },
+      "results": {
+        "policy": {
+          "velocity_error_xy_mps": 0.3999412482976914,
+          "yaw_error_rps": 0.00028353446154748475,
+          "command_aligned_progress_m": 0.00028674053044142056,
+          "survival_seconds": 5.0,
+          "action_saturation": 0.0,
+          "raw_action_abs": 0.0065195622146129615,
+          "failure_rate": 0.0
+        },
+        "zero_action": {
+          "velocity_error_xy_mps": 0.3998686224222183,
+          "yaw_error_rps": 0.00022883175237711838,
+          "command_aligned_progress_m": 0.0006468581418204167,
+          "survival_seconds": 5.0,
+          "action_saturation": 0.0,
+          "raw_action_abs": 0.0,
+          "failure_rate": 0.0
+        }
+      }
+    }
+  },
+  "limitations": [
+    "CPU numerical/physical integration only; no CUDA throughput or BF16 GPU validation",
+    "20 iterations / 264 transitions did not establish a walking policy",
+    "Native JAX/G1 training has not run; requires separate Linux environment, meshes and CSV data",
+    "PyTorch LgDog adaptation does not reproduce whole-iteration XLA compilation or multi-GPU pipelines"
+  ]
+}

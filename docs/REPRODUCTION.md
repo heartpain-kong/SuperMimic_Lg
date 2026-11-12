@@ -1,6 +1,8 @@
 # 复现与适配记录
 
-实现依据是 `E:\足式机器人\SuperMimic\SuperMimic\README.md`、其 `SuperMimic-Reproduced_CuboiLeo` 源码，以及 `E:\mjlab\unitree_rl_mjlab_lgdog\unitree_rl_mjlab_lgdog` 的 tracking 任务和 LgDog1 资产。
+2026-11-12 的模块化重构与六个本地实现的对照见 [重构说明](REFACTOR_2026-11-12.md)，训练核心位于 `learning/`，物理生命周期位于 `runners/`。
+
+实现依据是 `E:\足式机器人\SuperMimic\README.md`、其 `SuperMimic-Reproduced_CuboiLeo` 源码，以及 `E:\mjlab\unitree_rl_mjlab_lgdog\unitree_rl_mjlab_lgdog` 的 tracking 任务和 LgDog1 资产。
 
 SuperMimic 的可迁移部分是：
 

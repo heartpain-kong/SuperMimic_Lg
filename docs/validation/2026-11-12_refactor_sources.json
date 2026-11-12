@@ -1,0 +1,58 @@
+{
+  "SuperMimic-Reproduced_CuboiLeo": {
+    "files": {
+      "src/supermimic/imagination/policy_trainer.py": "9626e1b9683d7f6b0e9fd5979d09bcd08437a6508e8b90ba99f5484c677b946a",
+      "src/supermimic/imagination/objective.py": "baec21089e62b516aaba5a490dad0840ffdba194a20c23d15bb8d124b629b9f8",
+      "src/supermimic/imagination/rollout.py": "9e6ec43e732d3132157cb30d4d46583944660d8e045b0bde7f0bc5abdc12d950",
+      "src/supermimic/world_model/wm_trainer.py": "d8841d34665853de546ae72a8aea1fea5747d87d8ea0d0a687374f691df96cd3"
+    },
+    "commit": "d9be385b3eeb13a638fb33fb200d3bfd9be9839f",
+    "remote": "https://github.com/CuboiLeo/SuperMimic-Reproduced.git",
+    "license_header": "MIT License\n\nCopyright (c) 2026 Yuxi Liu\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\no"
+  },
+  "xmimic-main/xmimic-main": {
+    "files": {
+      "xmimic/algorithm.py": "de48e61ecdc6b6b0e32ada3197a35514d40dd89794530a9e9d56ae7efa6377c1",
+      "xmimic/config.py": "07bcdef1a6b18fcee5b4ef9fbeef8341cd110c47e855d29310e463b8452bbdb6",
+      "xmimic/buffer.py": "07c7b01f4fb680fa6e3549f087c6d81131b07f26f0f21d2b6db4084aa3561a39",
+      "xmimic/nets.py": "a8effd1129df969ab3725178bd6c53b832e738c61b44f5aae88cca14454763ea"
+    },
+    "source_type": "local archive; no repository revision verified",
+    "license_header": "MIT License\n\nCopyright (c) 2026 Nico Bohlinger\n\nPermission is hereby granted, free of charge, to any person obtaining a "
+  },
+  "Uni-SuperMimic_Motphys": {
+    "files": {
+      "src/unisupermimic/rl/algos/supermimic/learner.py": "c2b12fdf94be102ffadfb343b9372069d32cb660b2f05b66e836351b328361f4",
+      "src/unisupermimic/rl/algos/supermimic/replay.py": "f1b6b44f54ba1e6f987dda6377889ca2055e3230a6b875c3504ef181f295aff5"
+    },
+    "commit": "bc0f0f3499a12019ec0ea313ff37bbd0a70a6a04",
+    "remote": "https://github.com/Motphys/Uni-SuperMimic.git",
+    "license_header": "Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AN"
+  },
+  "supermimic_vibed_zita-ch": {
+    "files": {
+      "supermimic/train.py": "45075d85e9b7bf79365d2ddb5408b9b764f3e3c21842b0f5f905abff18637ab2",
+      "supermimic/buffer.py": "b09029916c937f82822ecbd372b915fff8af615cdd81eacfcaa4fd97bc786b41"
+    },
+    "commit": "a1508d42c9d1699a52e8233ab16d08c488441ab9",
+    "remote": "https://github.com/zita-ch/supermimic_vibed.git",
+    "license_header": "MIT License\n\nCopyright (c) 2026 ETH Zurich, Chong Zhang\n\nPermission is hereby granted, free of charge, to any person obt"
+  },
+  "trackerlab-supermimic_Renforce": {
+    "files": {
+      "source/trackerLab/trackerLab/algorithms/supermimic/runner.py": "d0a3766c84790a82632bf9ee90ac0f231a7d320e21da4b1c35a3d227c8b67741",
+      "source/trackerTask/trackerTask/supermimic/go2_env_cfg.py": "6ff5cbd2529306ea417ebc1e8b32ecf51c7aa88e202eec4bf9b32766f34d6e53"
+    },
+    "commit": "fff813c86baad669c3da38920e1de040c1b75fcd",
+    "remote": "https://github.com/Renforce-Dynamics/trackerlab-supermimic.git",
+    "license_header": "MIT License\n\nCopyright (c) 2024 NathanWu7\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\n"
+  },
+  "supermimic_whole_body_tracking_JackMin7": {
+    "files": {
+      "train_mbrl.py": "098989b55106a7f2b291e2d066bfd77f4f9c5eafa56a322fe769d2147a1d270c"
+    },
+    "commit": "553a7d32dc5fc00cbe6de5ee46479af2fcceeda8",
+    "remote": "https://github.com/JackMin7/supermimic_whole_body_tracking.git",
+    "license_header": "MIT License\n\nCopyright (c) 2026 Jack Min\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\no"
+  }
+}

@@ -11,6 +11,7 @@ import torch
 from .velocity_task import VelocityPolicy, frame, phase_at, failure, velocity_error, geometry
 from .velocity_physics import VelocitySimulator
 from .state import heading_quat, quat_apply
+from .checkpointing import VELOCITY_ALGORITHMS, policy_state
 
 
 def hardware():
@@ -33,9 +34,9 @@ def digest(path):
 
 
 class CheckpointActor:
-    def __init__(self, path, device, xml):
+    def __init__(self, path, device, xml, selection="auto"):
         ck = torch.load(path, map_location=device, weights_only=True)
-        if ck.get("algorithm") != "supermimic_velocity_bptt":
+        if ck.get("algorithm") not in VELOCITY_ALGORITHMS:
             raise ValueError("benchmark needs a velocity BPTT checkpoint")
         self.metadata = ck["metadata"]
         if self.metadata["xml_sha256"] != digest(xml):
@@ -46,14 +47,15 @@ class CheckpointActor:
         self.depth = self.metadata.get("depth")
         self.depth_feat = 0 if not self.depth else int(self.depth["feat"])
         self.policy = VelocityPolicy(self.history, self.metadata["actor_hidden"], self.depth_feat).to(device).eval()
-        self.policy.load_state_dict(ck["policy"])
+        weights, self.policy_source = policy_state(ck, selection)
+        self.policy.load_state_dict(weights)
+        self.algorithm = ck["algorithm"]
         self.encoder = None
         if self.depth:
             from .depth import DepthEncoder
-            from .velocity_task import VelocityWorldModel
-            world = VelocityWorldModel(self.metadata["wm_hidden"], DepthEncoder(self.depth))
-            world.load_state_dict(ck["wm"])
-            self.encoder = world.encoder.to(device).eval()
+            self.encoder = DepthEncoder(self.depth).to(device).eval()
+            self.encoder.load_state_dict({key[len("encoder."):]: value for key, value in ck["wm"].items()
+                                          if key.startswith("encoder.")})
         self.training_seconds = ck.get("training_seconds")
         self.iteration = ck["iteration"]
 
@@ -96,7 +98,7 @@ class HIMActor:
         return torch.tensor(values, device=self.device).clamp(-1., 1.)
 
 
-def evaluate_actor(actor, sim, seeds, seconds):
+def evaluate_actor(actor, sim, seeds, seconds, fixed_command=None):
     episodes = []
     for seed in seeds:
         sim.rng = np.random.default_rng(seed)
@@ -105,18 +107,24 @@ def evaluate_actor(actor, sim, seeds, seconds):
         history = None
         error_xy = error_yaw = progress = target = 0.
         failed = False
+        saturated = raw_abs = 0.
         clearance_min = float("inf")
         command = torch.tensor([[.6, 0., 0.]], device=sim.device)
         started = time.monotonic()
         for step in range(round(seconds*50)):
             # The exact same deterministic command schedule is used for both.
-            command[:] = command.new_tensor([.6, 0., 0.] if step < 200 else ([.4,.15,0.] if step < 350 else [.4,-.15,.2]))
+            command[:] = command.new_tensor(fixed_command if fixed_command is not None else
+                ([.6, 0., 0.] if step < 200 else ([.4,.15,0.] if step < 350 else [.4,-.15,.2])))
             state, context = sim.observe()
             phase = phase_at(torch.tensor([step], device=sim.device))
+            phase *= (command.norm(dim=-1) >= 1e-3)[:, None]
             depth_feature = actor.encode(sim) if hasattr(actor, "encode") else None
             obs = frame(state, previous, command, phase, depth_feature)
             history = obs[:,None].repeat(1,actor.history,1) if history is None else torch.cat((history[:,1:],obs[:,None]),1)
-            action = actor(history).clamp(-1.,1.)
+            raw_action = actor(history)
+            saturated += float((raw_action.abs() >= 1.).float().mean())
+            raw_abs += float(raw_action.abs().mean())
+            action = raw_action.clamp(-1.,1.)
             if action.shape != (1,12) or not torch.isfinite(action).all():
                 raise FloatingPointError("benchmark actor emitted invalid actions")
             sim.step(action)
@@ -137,6 +145,7 @@ def evaluate_actor(actor, sim, seeds, seconds):
         episodes.append(dict(seed=seed, steps=steps, survival_seconds=steps*.02, failed=failed,
             terrain_passed=success, velocity_error_xy_mps=error_xy/steps, yaw_error_rps=error_yaw/steps,
             command_aligned_progress_m=progress, commanded_distance_m=target, min_clearance_m=clearance_min,
+            action_saturation=saturated/steps, raw_action_abs=raw_abs/steps,
             evaluation_seconds=time.monotonic()-started))
     return episodes
 
@@ -168,13 +177,14 @@ def paired_benchmark(xml, root, checkpoint, him_onnx, output, *, terrain="flat",
             command_schedule=[[0,.6,0.,0.],[200,.4,.15,0.],[350,.4,-.15,.2]],
             success="full episode, no failure, aligned progress >=2m and >=70% of commanded distance, XY error <0.8m/s",
             failure="relative clearance outside [0.14,0.65]m, up-vector z <0.5 or trunk contact",
-            task_code_sha256=digest(Path(__file__).with_name("velocity_task.py")))
+            task_code_sha256=digest(Path(__file__).parent/"tasks/velocity/mdp.py"))
         report = dict(protocol=protocol, protocol_sha256=hashlib.sha256(json.dumps(protocol,sort_keys=True).encode()).hexdigest(),
             evaluation_hardware=hardware(), matched_actor_history=matched,
             checkpoint_sha256={"supermimic":digest(checkpoint),"him_ppo":digest(him_onnx)}, results={})
         for name, actor in actors.items():
             episodes = evaluate_actor(actor,sim,seeds,seconds)
             report["results"][name] = dict(episodes=episodes, history=actor.history, iteration=actor.iteration,
+                algorithm=getattr(actor, "algorithm", "him_ppo"), policy_source=getattr(actor, "policy_source", None),
                 training_seconds=actor.training_seconds,
                 velocity_error_xy_mps=float(np.mean([e["velocity_error_xy_mps"] for e in episodes])),
                 failure_rate=float(np.mean([e["failed"] for e in episodes])),

@@ -64,9 +64,27 @@ def test_world_model_fits_its_normalisers_on_real_transitions():
     assert float(wm.in_norm.count) == 0
     wm.update_norms(state, action, context, nxt)
     assert float(wm.in_norm.count) == 8 and float(wm.out_norm.count) == 8
+    assert float(wm.error_norm.count) == 8
     assert wm.out_norm.std().min() > 0
     predicted = wm.step(state, action, context)
     assert predicted.shape == (8, 42) and torch.isfinite(predicted).all()
+    assert torch.isfinite(wm.prediction_error(predicted, nxt)).all()
+
+
+def test_world_model_repeated_norm_updates_keep_physical_statistics():
+    """Re-fitting normalized inputs used to move the mean toward zero each time."""
+    torch.manual_seed(7)
+    wm = VelocityWorldModel((16, 16))
+    state = torch.zeros(16, 42)
+    state[:, 2], state[:, 3] = .31, 1.
+    state[:, 25:37] = 3. + 2.*torch.randn(16, 12)
+    context = torch.zeros(16, 85)
+    action = .4 + .2*torch.randn(16, 12)
+    raw = wm.raw_inputs(state, action, context)
+    for _ in range(12):
+        wm.update_norms(state, action, context, state)
+    torch.testing.assert_close(wm.in_norm.mean, raw.mean(0), atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(wm.in_norm.var, raw.var(0, unbiased=False), atol=1e-5, rtol=1e-5)
 
 
 def test_policy_head_is_small_linear_and_not_saturating():
@@ -95,3 +113,23 @@ def test_critic_normalises_its_input_and_returns_scalars():
     critic.norm.update(features)
     assert float(critic.norm.count) == 32
     assert critic.norm.apply(features).mean(0).abs().max() < .5
+
+
+def test_velocity_network_autocast_keeps_physical_states_float32():
+    wm = VelocityWorldModel((16, 16))
+    policy = VelocityPolicy(2, (16, 16))
+    critic = VelocityCritic((16, 16))
+    state = torch.zeros(4, 42)
+    state[:, 2], state[:, 3] = .3, 1.
+    context = torch.zeros(4, 85)
+    # CPU autocast covers dtype boundaries without requiring a CUDA test host.
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        action = policy(torch.randn(4, 2, frame_dim()))
+        prediction = wm.step(state, action, context)
+        value = critic(torch.cat((wm.features(prediction, context), torch.zeros(4, 5)), -1))
+        loss = prediction.square().mean() + value.square().mean()
+    assert action.dtype == prediction.dtype == value.dtype == torch.float32
+    loss.backward()
+    for model in (wm, policy, critic):
+        grads = [p.grad for p in model.parameters() if p.grad is not None]
+        assert grads and all(torch.isfinite(g).all() for g in grads)

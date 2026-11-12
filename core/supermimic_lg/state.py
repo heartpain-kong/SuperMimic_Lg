@@ -159,7 +159,7 @@ class QuadrupedStateSpec:
         dv = quat_apply_inverse(hq, v1 - v)
         return torch.cat((dv, w1 - w, qd1 - qd, dp, dtheta, qj1 - qj - dt * qd1), dim=-1)
 
-    def error_vector(self, predicted: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def error_vector(self, predicted: torch.Tensor, target: torch.Tensor, normalized: bool = True) -> torch.Tensor:
         n = self.n_joints
         p1, q1, qj1, v1, w1, qd1 = self.split(predicted)
         p2, q2, qj2, v2, w2, qd2 = self.split(target)
@@ -168,7 +168,8 @@ class QuadrupedStateSpec:
         qerr = quat_mul(q2 * q2.new_tensor([1., -1., -1., -1.]), q1)
         rot = 2.0 * qerr[..., 1:]
         scale = predicted.new_tensor([0.05] * 3 + [0.1] * 3 + [0.5] * 3 + [1.0] * 3 + [0.1] * n + [2.0] * n)
-        return torch.cat((p1-p2, rot, v1-v2, w1-w2, qj1-qj2, qd1-qd2), dim=-1) / scale
+        error = torch.cat((p1-p2, rot, v1-v2, w1-w2, qj1-qj2, qd1-qd2), dim=-1)
+        return error / scale if normalized else error
 
     def normalized_sq_error(self, predicted: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         e = self.error_vector(predicted, target)

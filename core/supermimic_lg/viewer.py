@@ -84,6 +84,7 @@ class VelocityPlayback:
 
     def telemetry(self):
         return dict(task="velocity", checkpoint=self.checkpoint, checkpoint_iteration=self.actor.iteration,
+            algorithm=self.actor.algorithm, policy_source=self.actor.policy_source,
             history=self.actor.history, frame_dim=47+self.actor.depth_feat, frame=self.frame, motion_frames=501,
             steps=self.steps, resets=self.resets, root_height=float(self.sim.data[0].qpos[2]),
             training_terrain=self.actor.metadata["terrain"], playback_terrain=self.sim.terrain,

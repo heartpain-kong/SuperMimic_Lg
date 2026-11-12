@@ -25,16 +25,20 @@ class RunningNorm(nn.Module):
     @torch.no_grad()
     def update(self, x: torch.Tensor, max_count: float = 2e8):
         x = x.reshape(-1, x.shape[-1]).float()
-        count = float(self.count)
-        if count >= max_count or x.shape[0] == 0:
+        if x.shape[0] == 0:
             return self
+        # Keep the count on device: float(cuda_tensor) forces a GPU sync on every
+        # observation/WM/critic normaliser update.
+        count = self.count
         n = x.shape[0]
         mean, var = x.mean(0), x.var(0, unbiased=False)
         total = count + n
         delta = mean - self.mean
-        self.mean += delta*n/total
-        self.var = (self.var*count + var*n + delta.square()*count*n/total)/total
-        self.count += n
+        live = count < max_count
+        self.mean.copy_(torch.where(live, self.mean + delta*n/total, self.mean))
+        self.var.copy_(torch.where(live,
+            (self.var*count + var*n + delta.square()*count*n/total)/total, self.var))
+        self.count.copy_(torch.where(live, total, count))
         return self
 
     def apply(self, x: torch.Tensor) -> torch.Tensor:

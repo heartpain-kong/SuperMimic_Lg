@@ -127,6 +127,19 @@ def build_command(data, root, run_dir):
             command += ["supermimic_lg.scripts.train_supermimic", "--mjlab-root", str(mjlab),
                         "--task", "velocity" if mode == "velocity" else "tracking", "--backend", backend, "--device", device(data),
                         "--terrain", terrain, "--output-dir", str(run_dir)]
+            algorithm = str(data.get("algorithm", "supermimic")) if mode == "velocity" else "supermimic"
+            if algorithm not in ("supermimic", "xmimic"):
+                raise ValueError("无效的训练算法")
+            command += ["--algorithm", algorithm]
+            if algorithm == "xmimic":
+                if str(data.get("depth", "")).lower() in ("1", "true", "on", "yes"):
+                    raise ValueError("XMimic-Lg 当前使用盲本体观测，深度请使用 SuperMimic")
+                command += ["--warmup-steps", str(integer(data, "warmup_steps", 64, 0, 1000000))]
+                for field, default, upper in (("policy_ema_decay", .995, 1.), ("wm_mirror_fraction", 0., 1.)):
+                    value = float(data.get(field, default))
+                    if not math.isfinite(value) or value < 0 or value > upper or (field == "policy_ema_decay" and value == 1):
+                        raise ValueError(f"{field} 参数超出范围")
+                    command += ["--"+field.replace("_", "-"), str(value)]
             if motion is not None:
                 command += ["--motion-file", str(motion)]
             if mode == "velocity":
@@ -163,6 +176,35 @@ def build_command(data, root, run_dir):
                             str(integer(data, "command_curriculum_iterations", 500, 0, 10_000_000)),
                             "--command-curriculum-start",
                             str(float(data.get("command_curriculum_start", .25) or .25))]
+                precision = str(data.get("precision", "fp32"))
+                if precision not in ("fp32", "bf16") or (precision == "bf16" and backend != "mjlab"):
+                    raise ValueError("bf16 精度需要 mjlab CUDA 后端")
+                command += ["--precision", precision]
+                wm_loss_scale = str(data.get("wm_loss_scale", "fixed"))
+                if wm_loss_scale not in ("fixed", "increment"):
+                    raise ValueError("无效的世界模型损失缩放")
+                command += ["--wm-loss-scale", wm_loss_scale]
+                for field, default in (("action_bound_weight", 1.), ("max_training_seconds", 0.),
+                                       ("action_noise", .1), ("explore_noise", 1.)):
+                    value = float(data.get(field, default))
+                    if not math.isfinite(value) or value < 0 or (field == "action_noise" and value > 1):
+                        raise ValueError(f"{field} 参数超出范围")
+                    command += ["--"+field.replace("_", "-"), str(value)]
+                for field, default, low in (("replay_capacity", 256, 1), ("wm_horizon", 4, 1),
+                                             ("explore_iterations", 100, 0)):
+                    command += ["--"+field.replace("_", "-"), str(integer(data, field, default, low, 1000000))]
+                if int(data.get("replay_capacity", 256)) < int(data.get("wm_horizon", 4)):
+                    raise ValueError("回放容量不能小于世界模型预测步数")
+            # Empty overrides preserve existing --batch-size and task defaults.
+            for field in ("wm_batch_size", "policy_batch_size", "critic_epochs", "critic_minibatches"):
+                if str(data.get(field, "")).strip():
+                    command += ["--"+field.replace("_", "-"), str(integer(data, field, 1, 1, 1000000))]
+            for field in ("wm_lr", "actor_lr", "critic_lr", "update_to_data_ratio"):
+                if str(data.get(field, "")).strip():
+                    value = float(data[field])
+                    if not math.isfinite(value) or value <= 0 or (field == "update_to_data_ratio" and value > 1):
+                        raise ValueError(f"{field} 参数超出范围")
+                    command += ["--"+field.replace("_", "-"), str(value)]
             for field, flag, default, high in (("envs", "num-envs", 64, 65536), ("iterations", "iterations", 20, 10000000),
                     ("batch_size", "batch-size", 128, 65536), ("horizon", "horizon", 8, 4096),
                     ("history", "history", 3, 128),

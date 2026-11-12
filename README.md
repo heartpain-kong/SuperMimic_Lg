@@ -2,6 +2,10 @@
 
 这个目录把 `E:\足式机器人\SuperMimic\代码\SuperMimic-Reproduced_CuboiLeo` 的核心思路整理成可复用的四足实现：学习一个带上下文条件的可微动力学模型，用软终止概率保留 BPTT 梯度，再在模型中进行短视野想象更新。状态、动作、目标和跟踪奖励都按机器人维度生成，默认提供 Unitree Go2 与现有 `E:\mjlab\unitree_rl_mjlab_lgdog` 的 LgDog1 映射。
 
+当前 **0.3.0**（SuperMimic modular v5 / XMimic-Lg v6） 已把任务、网络、回放、学习核心与训练生命周期拆开，支持独立模型/策略批量、UTD 调度和可审计的更新计数。结构、参考源码、兼容入口与检查点迁移见 [重构说明](docs/REFACTOR_2026-11-12.md)。
+
+新增可选 **XMimic-Lg · PyTorch**（Muon/Adam、EMA、结构化动力学），并保留原版 **JAX/G1** 源码与独立启动器。工作台可切换训练算法；入口、默认值与适配边界见 [XMimic 使用说明](docs/XMIMIC.md)。
+
 Ubuntu 22.04 的从克隆、GPU/依赖安装到启动步骤见 [`docs/UBUNTU_22_04.md`](docs/UBUNTU_22_04.md)。
 
 安装完成后可用网页启动/停止训练、设置参数、预览命令和查看实时日志：
@@ -13,6 +17,8 @@ python -m supermimic_lg.workbench --root /path/to/SuperMimic_Lg --port 8089
 本机浏览器打开 `http://127.0.0.1:8089`；Ubuntu 远程服务器使用 SSH 转发后访问。完整步骤见 [工作台说明](docs/WORKBENCH.md)。选择 **LgDog · SuperMimic 在线训练**，可直接进入真实仿真采集、世界模型拟合和 BPTT 策略更新循环；PPO tracking 保留为独立基线。
 
 新增 **LgDog · 速度指令运控**：无需动作 NPZ，使用速度任务奖励和当前策略的物理交互训练地形世界模型与 BPTT actor；原动作跟踪入口继续使用 NPZ。工作台还提供 **统一评估 · SuperMimic / HIM-PPO**。训练、地形/接触输入、相对地面终止与公平比较步骤见 [速度模式说明](docs/VELOCITY_MBRL.md)。
+
+2026-11-12 修复了速度 MBRL 的输入统计、饱和动作梯度和采集时序；新增实验性损失缩放、4060 配置、可选 BF16、分阶段计时/显存统计及独立无噪声评估。步骤与验证边界见 [4060 MBRL 修复说明](docs/MBRL_4060_FIX.md)。
 
 工作台右侧提供 **策略观看 · SuperMimic**：选择检查点后显示真实 MuJoCo 网格画面，支持暂停/继续、重置、速度与视角切换，观看与训练分别控制。
 

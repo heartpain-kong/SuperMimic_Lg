@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "supermimic-lg"
-version = "0.1.0"
+version = "0.3.0"
 description = "Generic SuperMimic differentiable world model with quadruped and LgDog1 adapters"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "torch>=2.1"]
@@ -18,10 +18,20 @@ supermimic-lg-smoke = "supermimic_lg.scripts.smoke:main"
 supermimic-lg-register-lgdog = "supermimic_lg.scripts.register_lgdog_tracking:main"
 supermimic-lg-train-wm = "supermimic_lg.scripts.train_world_model:main"
 supermimic-lg-workbench = "supermimic_lg.workbench:main"
-supermimic-lg-train = "supermimic_lg.scripts.train_supermimic:main"
+supermimic-lg-train = "supermimic_lg.cli:main"
+supermimic-lg-xmimic = "supermimic_lg.scripts.train_xmimic:main"
+supermimic-xmimic-native = "supermimic_lg.scripts.xmimic_native:main"
 
 [tool.setuptools.packages.find]
 where = ["core"]
+exclude = ["supermimic_lg.vendor.xmimic.data*", "supermimic_lg.vendor.xmimic.runs*", "supermimic_lg.vendor.xmimic.assets.g1.assets*"]
+
+[tool.setuptools]
+license-files = ["docs/THIRD_PARTY_NOTICES.md"]
 
 [tool.setuptools.package-data]
 "supermimic_lg.web" = ["*.html"]
+"supermimic_lg.vendor.xmimic" = ["LICENSE", "*.md", "*.txt", "*.json", "assets/g1/*", "tools/*.sh", "tools/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

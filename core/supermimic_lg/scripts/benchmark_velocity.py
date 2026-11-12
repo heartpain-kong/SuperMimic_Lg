@@ -30,7 +30,8 @@ def main():
     for name,path in (("supermimic",a.supermimic_training_manifest),("him_ppo",a.him_training_manifest)):
         if path:
             manifest=json.loads(path.read_text(encoding="utf-8"))
-            if manifest.get("algorithm")!=name or manifest.get("exit_code")!=0 or manifest.get("wall_seconds",-1)<0:
+            expected = ("xmimic" if report["results"][name].get("algorithm") == "xmimic_velocity_bptt" else name)
+            if manifest.get("algorithm")!=expected or manifest.get("exit_code")!=0 or manifest.get("wall_seconds",-1)<0:
                 raise ValueError("invalid/incomplete training manifest")
             manifests[name]=manifest
             report["results"][name]["full_run_training_seconds"]=manifest["wall_seconds"]

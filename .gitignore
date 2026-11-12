@@ -10,3 +10,8 @@ logs/
 *.onnx
 build/
 dist/
+
+# Native XMimic downloads and training output
+core/supermimic_lg/vendor/xmimic/data/
+core/supermimic_lg/vendor/xmimic/runs/
+core/supermimic_lg/vendor/xmimic/assets/g1/assets/meshes/

@@ -74,6 +74,33 @@ def test_velocity_workbench_needs_no_reference_motion(tmp_path):
                        ('--command-curriculum-start','0.3')):
         assert curriculum[curriculum.index(flag)+1]==value, flag
 
+    efficient=wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mjlab',device='cuda:0',
+        precision='bf16',replay_capacity=64,wm_horizon=4,max_training_seconds=1200,
+        action_bound_weight=1.,explore_noise=.8,action_noise=.05,explore_iterations=200),
+        tmp_path,tmp_path/'efficient')
+    for flag,value in (('--precision','bf16'),('--replay-capacity','64'),('--wm-horizon','4'),
+                       ('--wm-loss-scale','fixed'),
+                       ('--max-training-seconds','1200.0'),('--action-bound-weight','1.0'),
+                       ('--explore-noise','0.8'),('--action-noise','0.05'),('--explore-iterations','200')):
+        assert efficient[efficient.index(flag)+1]==value
+    with pytest.raises(ValueError):
+        wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mujoco',device='cpu',
+            precision='bf16'),tmp_path,tmp_path/'bad')
+    split=wb.build_command(dict(mode='velocity',mjlab_root=str(tmp_path),backend='mujoco',device='cpu',
+        wm_batch_size=32,policy_batch_size=16,update_to_data_ratio=.4,critic_epochs=2,critic_minibatches=3,
+        actor_lr=.0002),tmp_path,tmp_path/'split')
+    for flag,value in (('--wm-batch-size','32'),('--policy-batch-size','16'),('--update-to-data-ratio','0.4'),
+                       ('--critic-epochs','2'),('--critic-minibatches','3'),('--actor-lr','0.0002')):
+        assert split[split.index(flag)+1]==value
+    xm=wb.build_command(dict(mode='velocity',algorithm='xmimic',mjlab_root=str(tmp_path),backend='mujoco',
+        device='cpu',warmup_steps=8,policy_ema_decay=.9,wm_mirror_fraction=.25),tmp_path,tmp_path/'xm')
+    for flag,value in (('--algorithm','xmimic'),('--warmup-steps','8'),('--policy-ema-decay','0.9'),
+                       ('--wm-mirror-fraction','0.25')):
+        assert xm[xm.index(flag)+1]==value
+    with pytest.raises(ValueError,match='深度'):
+        wb.build_command(dict(mode='velocity',algorithm='xmimic',depth='1',mjlab_root=str(tmp_path),
+            backend='mujoco',device='cpu'),tmp_path,tmp_path/'badxm')
+
 
 def test_benchmark_command_uses_shared_protocol_and_rejects_mixed_single_world(tmp_path):
     checkpoint=tmp_path/'checkpoint.pt';checkpoint.touch()

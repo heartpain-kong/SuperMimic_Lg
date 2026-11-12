@@ -30,7 +30,7 @@ def privileged_observation(env):
     state,context=snapshot(env)
     command=env.command_manager.get_command("twist")
     phase=phase_at(env.episode_length_buf)
-    phase *= (command.norm(dim=-1)>=.1)[:,None]
+    phase *= (command.norm(dim=-1)>=1e-3)[:,None]
     return torch.cat((state_features(state,context),command,phase),-1)
 
 
@@ -44,7 +44,7 @@ def shared_reward(env, xml, objective=None):
         env._shared_velocity_feet=FootKinematics(xml,env.device)
     command=env.command_manager.get_command("twist")
     phase=phase_at((env.episode_length_buf-1).clamp_min(0))
-    phase *= (command.norm(dim=-1)>=.1)[:,None]
+    phase *= (command.norm(dim=-1)>=1e-3)[:,None]
     stats=getattr(env,"_shared_velocity_stats",None)
     if stats is not None and stats['last_step'] != env.common_step_counter:
         desired=quat_apply(heading_quat(state[:,3:7]),torch.cat((command[:,:2],command[:,:1]*0),-1))[:,:2]

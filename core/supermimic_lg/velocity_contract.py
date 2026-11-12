@@ -35,10 +35,12 @@ def shared_task_contract(xml,root,args):
                    if (p/'src/tasks/velocity/config/lgdog1/terrain_cfg.py').is_file()),None)
         if path is None:raise ValueError('missing LgDog terrain profile')
         profile=sha(path)
-    contract=dict(version=1,xml_sha256=sha(xml),terrain=args.terrain,terrain_profile_sha256=profile,
+    contract=dict(version=2,xml_sha256=sha(xml),terrain=args.terrain,terrain_profile_sha256=profile,
         physics_backend=getattr(args,'backend','mjlab'),
         robot_constants_sha256=sha(constants) if constants else None,
-        reward_and_failure_code_sha256=sha(Path(__file__).with_name('velocity_task.py')),
+        reward_and_failure_code_sha256=sha(Path(__file__).parent/'tasks/velocity/mdp.py'),
+        observation_schema_sha256=sha(Path(__file__).parent/'tasks/velocity/schema.py'),
+        task_adapter_sha256=sha(Path(__file__).parent/'tasks/velocity/task.py'),
         physics_code_sha256=sha(Path(__file__).with_name('velocity_physics.py')),
         native_adapter_sha256=sha(Path(__file__).parent/'adapters/mjlab_velocity.py'),
         control_dt=.02,physics_dt=.005,actor_frame_dim=47+_depth_feat(args),history=args.history,

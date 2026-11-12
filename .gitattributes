@@ -1,0 +1,2 @@
+# Preserve the byte hashes recorded in the upstream source manifest.
+core/supermimic_lg/vendor/xmimic/** -text whitespace=cr-at-eol

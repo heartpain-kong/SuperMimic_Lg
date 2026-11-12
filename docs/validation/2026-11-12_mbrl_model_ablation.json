@@ -1,0 +1,138 @@
+{
+  "date": "2026-11-12",
+  "protocol": "8 real worlds, first 4 fit / last 4 held out; paired data/initialization/windows",
+  "steps": 256,
+  "updates": 400,
+  "worlds": 8,
+  "train_worlds": 4,
+  "validation_worlds": 4,
+  "hidden": [
+    64,
+    64
+  ],
+  "batch": 128,
+  "fit_horizon": 4,
+  "control_dt": 0.02,
+  "physics_dt": 0.005,
+  "comparison": "legacy reproduces only old normalized-input-statistics update; corrected_scaled adds raw-input statistics and increment-scaled loss",
+  "limitation": "CPU random-action prediction experiment, not policy convergence or GPU performance",
+  "results": [
+    {
+      "seed": 0,
+      "legacy": {
+        "seconds": 23.140999999995984,
+        "state_error_1": 0.09317325055599213,
+        "velocity_rmse_1": 0.07722868770360947,
+        "state_error_8": 0.11743845790624619,
+        "velocity_rmse_8": 0.11380243301391602,
+        "state_error_16": 0.14500027894973755,
+        "velocity_rmse_16": 0.12634484469890594
+      },
+      "corrected": {
+        "seconds": 23.531000000002678,
+        "state_error_1": 0.10653948783874512,
+        "velocity_rmse_1": 0.07174015045166016,
+        "state_error_8": 0.13321727514266968,
+        "velocity_rmse_8": 0.11464984714984894,
+        "state_error_16": 0.16890493035316467,
+        "velocity_rmse_16": 0.14107422530651093
+      },
+      "corrected_scaled": {
+        "seconds": 25.76600000000326,
+        "state_error_1": 0.10947347432374954,
+        "velocity_rmse_1": 0.04693857580423355,
+        "state_error_8": 0.12246720492839813,
+        "velocity_rmse_8": 0.06814847141504288,
+        "state_error_16": 0.13566777110099792,
+        "velocity_rmse_16": 0.07661828398704529
+      }
+    },
+    {
+      "seed": 1,
+      "legacy": {
+        "seconds": 19.20300000000134,
+        "state_error_1": 0.11050216853618622,
+        "velocity_rmse_1": 0.07778450846672058,
+        "state_error_8": 0.12273229658603668,
+        "velocity_rmse_8": 0.12044984847307205,
+        "state_error_16": 0.14834600687026978,
+        "velocity_rmse_16": 0.13178426027297974
+      },
+      "corrected": {
+        "seconds": 20.2190000000046,
+        "state_error_1": 0.12378554791212082,
+        "velocity_rmse_1": 0.07882176339626312,
+        "state_error_8": 0.1424570381641388,
+        "velocity_rmse_8": 0.130311980843544,
+        "state_error_16": 0.17273715138435364,
+        "velocity_rmse_16": 0.1522110402584076
+      },
+      "corrected_scaled": {
+        "seconds": 20.406000000002678,
+        "state_error_1": 0.12618358433246613,
+        "velocity_rmse_1": 0.04938233271241188,
+        "state_error_8": 0.12828432023525238,
+        "velocity_rmse_8": 0.0713614970445633,
+        "state_error_16": 0.14205525815486908,
+        "velocity_rmse_16": 0.07907707989215851
+      }
+    },
+    {
+      "seed": 42,
+      "legacy": {
+        "seconds": 20.32800000000134,
+        "state_error_1": 0.10292628407478333,
+        "velocity_rmse_1": 0.08083026111125946,
+        "state_error_8": 0.12116383016109467,
+        "velocity_rmse_8": 0.11303354799747467,
+        "state_error_16": 0.14357344806194305,
+        "velocity_rmse_16": 0.12143759429454803
+      },
+      "corrected": {
+        "seconds": 20.75,
+        "state_error_1": 0.1202864870429039,
+        "velocity_rmse_1": 0.08850440382957458,
+        "state_error_8": 0.14356854557991028,
+        "velocity_rmse_8": 0.12868215143680573,
+        "state_error_16": 0.17298248410224915,
+        "velocity_rmse_16": 0.14992576837539673
+      },
+      "corrected_scaled": {
+        "seconds": 20.2809999999954,
+        "state_error_1": 0.12263397872447968,
+        "velocity_rmse_1": 0.04989590495824814,
+        "state_error_8": 0.1301288604736328,
+        "velocity_rmse_8": 0.06400362402200699,
+        "state_error_16": 0.1419728398323059,
+        "velocity_rmse_16": 0.07265975326299667
+      }
+    }
+  ],
+  "xml_sha256": "f1ca7f33118514fd962014a0f88555ff494e8e76977ba0908979631a0298ebc3",
+  "means": {
+    "legacy": {
+      "state_error_1": 0.10220056772232056,
+      "velocity_rmse_1": 0.07861448576052983,
+      "state_error_8": 0.12044486155112584,
+      "velocity_rmse_8": 0.11576194316148758,
+      "state_error_16": 0.14563991129398346,
+      "velocity_rmse_16": 0.12652223308881125
+    },
+    "corrected": {
+      "state_error_1": 0.11687050759792328,
+      "velocity_rmse_1": 0.07968877255916595,
+      "state_error_8": 0.13974761962890625,
+      "velocity_rmse_8": 0.12454799314339955,
+      "state_error_16": 0.17154152194658914,
+      "velocity_rmse_16": 0.14773701131343842
+    },
+    "corrected_scaled": {
+      "state_error_1": 0.11943034579356511,
+      "velocity_rmse_1": 0.04873893782496452,
+      "state_error_8": 0.1269601285457611,
+      "velocity_rmse_8": 0.06783786416053772,
+      "state_error_16": 0.13989862302939096,
+      "velocity_rmse_16": 0.07611837238073349
+    }
+  }
+}

@@ -136,3 +136,52 @@ def test_reference_free_training_with_depth_on_real_physics(tmp_path):
     resumed = VelocityTrainer(args)
     resumed.run()
     assert resumed.iteration == 3
+    args.resume = None; args.init_policy = tmp_path/"depth/checkpoint.pt"; args.output_dir = tmp_path/"transfer"
+    transferred = VelocityTrainer(args)
+    try:
+        assert transferred.iteration == 0
+        for key, value in resumed.wm.encoder.state_dict().items():
+            torch.testing.assert_close(transferred.wm.encoder.state_dict()[key], value)
+    finally:
+        transferred.sim.close()
+
+
+def test_replay_depth_is_causal_and_sensed_once_per_step(tmp_path, monkeypatch):
+    xml = os.environ.get("LGDOG_TEST_XML")
+    if not xml or not Path(xml).is_file():
+        pytest.skip("set LGDOG_TEST_XML for real LgDog integration")
+    from supermimic_lg.scripts.train_supermimic import parser
+    from supermimic_lg.scripts.train_velocity import VelocityTrainer
+    args = parser().parse_args(["--task", "velocity", "--robot-xml", xml,
+        "--backend", "mujoco", "--device", "cpu", "--num-envs", "2",
+        "--collect-steps", "3", "--episode-steps", "100", "--depth", "--depth-size", "8x8",
+        "--depth-feat", "4", "--wm-hidden", "16,16", "--actor-hidden", "16,16",
+        "--critic-hidden", "16,16", "--output-dir", str(tmp_path/"causal")])
+    trainer = VelocityTrainer(args)
+    calls = {"step": 0, "observe": 0, "depth": 0}
+    step, observe = trainer.sim.step, trainer.sim.observe
+
+    def stepped(action):
+        step(action)
+        calls["step"] += 1
+
+    def observed():
+        calls["observe"] += 1
+        return observe()
+
+    def depth():
+        calls["depth"] += 1
+        return torch.full((2, 8, 8), float(calls["step"] + 1)*.5)
+
+    monkeypatch.setattr(trainer.sim, "step", stepped)
+    monkeypatch.setattr(trainer.sim, "observe", observed)
+    monkeypatch.setattr(trainer.sim, "depth", depth)
+    try:
+        trainer.reset(torch.arange(2), physics=False)
+        calls["observe"] = calls["depth"] = 0
+        trainer.collect()
+        torch.testing.assert_close(trainer.replay.rows["depth"][:3, 0, 0].float(),
+                                   torch.tensor([.5, 1., 1.5]))
+        assert calls == {"step": 3, "observe": 3, "depth": 3}
+    finally:
+        trainer.sim.close()
