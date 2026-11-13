@@ -21,13 +21,27 @@ def quat_mul(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 
 def quat_apply(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    qv = torch.cat((torch.zeros_like(v[..., :1]), v), dim=-1)
-    return quat_mul(quat_mul(q, qv), q * q.new_tensor([1.0, -1.0, -1.0, -1.0]))[..., 1:]
+    # Expanded q * [0,v] * conjugate(q), including non-unit q. Avoid two
+    # componentwise Hamilton products and their temporary four-vectors.
+    if q.dtype != v.dtype:
+        dtype = torch.promote_types(q.dtype, v.dtype)
+        q, v = q.to(dtype), v.to(dtype)
+    u, v = torch.broadcast_tensors(q[..., 1:], v)
+    w = q[..., :1]
+    return ((w.square()-u.square().sum(-1, keepdim=True))*v
+            + 2.*(u*v).sum(-1, keepdim=True)*u
+            + 2.*w*torch.linalg.cross(u, v, dim=-1))
 
 
 def quat_apply_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    qi = q * q.new_tensor([1.0, -1.0, -1.0, -1.0])
-    return quat_apply(qi, v)
+    if q.dtype != v.dtype:
+        dtype = torch.promote_types(q.dtype, v.dtype)
+        q, v = q.to(dtype), v.to(dtype)
+    u, v = torch.broadcast_tensors(q[..., 1:], v)
+    w = q[..., :1]
+    return ((w.square()-u.square().sum(-1, keepdim=True))*v
+            + 2.*(u*v).sum(-1, keepdim=True)*u
+            - 2.*w*torch.linalg.cross(u, v, dim=-1))
 
 
 def quat_from_rotvec(v: torch.Tensor) -> torch.Tensor:

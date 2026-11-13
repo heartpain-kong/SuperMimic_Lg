@@ -36,24 +36,46 @@ class LgDogKinematics:
             self.links.append((p, index, tensor(model.body_pos[b]), tensor(model.body_quat[b]),
                                tensor(model.jnt_pos[j]), tensor(model.jnt_axis[j]),
                                float(model.qpos0[model.jnt_qposadr[j]])))
+        # A quadruped has four independent chains. Evaluate all links at the
+        # same depth together: three batched stages instead of twelve scalar
+        # link traversals, while preserving XML offsets/anchors/orientations.
+        depths = [0]
+        for parent, *_ in self.links:
+            depths.append(depths[parent]+1)
+        self.levels = []
+        previous = {0: 0}
+        body_order = [0]
+        for depth in range(1, max(depths)+1):
+            bodies = [i for i, d in enumerate(depths) if d == depth]
+            links = [self.links[i-1] for i in bodies]
+            index_tensor = lambda values: torch.tensor(values, dtype=torch.long, device=device)
+            self.levels.append((index_tensor([previous[link[0]] for link in links]),
+                index_tensor([link[1] for link in links]),
+                *[torch.stack([link[k] for link in links]) for k in range(2, 6)],
+                tensor([link[6] for link in links])))
+            previous = {body: i for i, body in enumerate(bodies)}
+            body_order.extend(bodies)
+        self.body_order = torch.tensor([body_order.index(i) for i in range(len(self.ids))],
+                                       dtype=torch.long, device=device)
 
     def __call__(self, state):
         root, rotation, joints, velocity, omega, rates = self.spec.split(state)
         rotation = quat_normalize(rotation)
-        pos, quat = [root], [rotation]
-        lin, ang = [velocity], [quat_apply(rotation, omega)]
-        shape = state.shape[:-1]
-        for p, j, offset, orient, anchor, axis, q0 in self.links:
-            origin = pos[p] + quat_apply(quat[p], offset.expand(*shape, 3))
-            q = quat_mul(quat[p], orient.expand(*shape, 4))
-            pivot = origin + quat_apply(q, anchor.expand(*shape, 3))
-            axis_w = quat_apply(q, axis.expand(*shape, 3))
-            q = quat_mul(q, quat_from_rotvec((joints[..., j] - q0)[..., None] * axis))
-            origin = pivot - quat_apply(q, anchor.expand(*shape, 3))
-            joint_w = axis_w * rates[..., j, None]
-            lin.append(lin[p] + torch.cross(ang[p], origin - pos[p], dim=-1)
+        pos, quat = [root.unsqueeze(-2)], [rotation.unsqueeze(-2)]
+        lin, ang = [velocity.unsqueeze(-2)], [quat_apply(rotation, omega).unsqueeze(-2)]
+        for parents, indices, offset, orient, anchor, axis, q0 in self.levels:
+            parent_pos, parent_quat, parent_vel, parent_ang = (
+                values[-1].index_select(-2, parents) for values in (pos, quat, lin, ang))
+            origin = parent_pos + quat_apply(parent_quat, offset)
+            q = quat_mul(parent_quat, orient)
+            pivot = origin + quat_apply(q, anchor)
+            axis_w = quat_apply(q, axis)
+            q = quat_mul(q, quat_from_rotvec((joints.index_select(-1, indices)-q0)[..., None]*axis))
+            origin = pivot - quat_apply(q, anchor)
+            joint_w = axis_w*rates.index_select(-1, indices)[..., None]
+            lin.append(parent_vel + torch.cross(parent_ang, origin-parent_pos, dim=-1)
                        + torch.cross(joint_w, origin - pivot, dim=-1))
-            ang.append(ang[p] + joint_w)
+            ang.append(parent_ang + joint_w)
             pos.append(origin)
             quat.append(q)
-        return tuple(torch.stack(x, dim=-2) for x in (pos, quat, lin, ang))
+        return tuple(torch.cat(x, dim=-2).index_select(-2, self.body_order) for x in (pos, quat, lin, ang))

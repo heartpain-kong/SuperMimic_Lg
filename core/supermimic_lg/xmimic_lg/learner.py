@@ -70,7 +70,8 @@ class XMimicLearner(VelocityLearner):
 
     def update_policy(self, rows):
         metrics = super().update_policy(rows)
-        self.ema.update(self.policy)
+        with self.timings.measure('policy_ema'):
+            self.ema.update(self.policy)
         metrics.update({"xmimic/ema_updates": self.ema.updates,
                         "xmimic/wm_lr": self.optimizers[0].param_groups[0]["lr"],
                         "xmimic/actor_lr": self.optimizers[1].param_groups[0]["lr"]})

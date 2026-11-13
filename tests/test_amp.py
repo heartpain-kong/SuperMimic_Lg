@@ -44,7 +44,8 @@ def test_contact_loss_cuda_bf16_backward():
 
 
 @pytest.mark.parametrize('algorithm', ['supermimic', 'xmimic'])
-def test_velocity_bf16_collection_and_learning_disable_bce_autocast(tmp_path, monkeypatch, algorithm):
+@pytest.mark.parametrize('policy_updates', [1, 3])
+def test_velocity_bf16_collection_and_learning_disable_bce_autocast(tmp_path, monkeypatch, algorithm, policy_updates):
     xml = os.environ.get('LGDOG_TEST_XML')
     if not xml or not Path(xml).is_file():
         pytest.skip('set LGDOG_TEST_XML for real LgDog physics')
@@ -55,7 +56,7 @@ def test_velocity_bf16_collection_and_learning_disable_bce_autocast(tmp_path, mo
         '--backend', 'mujoco', '--device', 'cpu', '--num-envs', '2', '--iterations', '2',
         '--collect-steps', '4', '--wm-horizon', '2', '--horizon', '3', '--batch-size', '4',
         '--wm-hidden', '16,16,16', '--actor-hidden', '16,16,16', '--critic-hidden', '16,16',
-        '--wm-updates', '1', '--policy-updates', '1', '--warmup-iterations', '1',
+        '--wm-updates', '1', '--policy-updates', str(policy_updates), '--warmup-iterations', '1',
         '--critic-epochs', '1', '--critic-minibatches', '2', '--torch-threads', '1',
         '--output-dir', str(tmp_path/algorithm)] + (['--warmup-steps', '4'] if algorithm == 'xmimic' else []))
     trainer = VelocityTrainer(args)
@@ -73,9 +74,12 @@ def test_velocity_bf16_collection_and_learning_disable_bce_autocast(tmp_path, mo
     monkeypatch.setattr(F, 'binary_cross_entropy', strict_bce)
     trainer.run()
     assert set(grad_modes) == {False, True}, 'cover both collection diagnostics and WM gradients'
-    assert trainer.learner.counts['wm'] == trainer.learner.counts['actor'] == 2
+    assert trainer.learner.counts['wm'] == 2 and trainer.learner.counts['actor'] == 2*policy_updates
     metrics = [json.loads(line) for line in (tmp_path/algorithm/'metrics.jsonl').read_text().splitlines()]
     assert all(math.isfinite(v) for row in metrics for v in row.values() if isinstance(v, (int, float)))
+    assert metrics[-1]['updates_this_iteration/actor'] == policy_updates
+    assert metrics[-1]['updates_this_iteration/critic'] == 2*policy_updates
+    assert metrics[-1]['time/actor_rollout_s'] > 0 and metrics[-1]['time/critic_fit_s'] > 0
     checkpoint = torch.load(tmp_path/algorithm/'checkpoint.pt', weights_only=True)
     if algorithm == 'xmimic':
-        assert checkpoint['learner']['ema']['updates'] == 2
+        assert checkpoint['learner']['ema']['updates'] == 2*policy_updates

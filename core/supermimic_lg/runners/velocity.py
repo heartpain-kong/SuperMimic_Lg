@@ -332,7 +332,13 @@ class VelocityTrainer:
 
     def run(self):
         title = "XMimic-Lg PyTorch BPTT" if self.algorithm == "xmimic" else "SuperMimic velocity BPTT"
-        print(json.dumps(dict(algorithm=title, reference_motion=None, **self.metadata)), flush=True)
+        print(json.dumps(dict(algorithm=title, reference_motion=None,
+            configured_updates_per_iteration=dict(wm=self.args.wm_updates, actor=self.args.policy_updates,
+                critic_max=self.args.policy_updates*self.learning_cfg.critic_epochs*self.learning_cfg.critic_minibatches),
+            **self.metadata)), flush=True)
+        if self.args.policy_updates > 1:
+            print(f"Each iteration requests {self.args.policy_updates} full BPTT updates plus critic fits; "
+                  "XMimic's starting profile uses 1. This count is independent of imagination horizon.", flush=True)
         failed_oom = False
         try:
             if self.algorithm == "xmimic" and self.args.warmup_steps:
@@ -344,6 +350,8 @@ class VelocityTrainer:
                 if self.algorithm == "xmimic":
                     self.learner.set_iteration(i-1)
                 iteration_started = self.timestamp()
+                counts_before = dict(self.learner.counts)
+                self.learner.timings.reset()
                 collect_steps = self.schedule.steps(i-1)
                 with self.autocast():
                     metrics = self.collect(collect_steps)
@@ -357,6 +365,7 @@ class VelocityTrainer:
                         with self.autocast():
                             for _ in range(self.args.policy_updates): metrics.update(self.update_policy())
                 updated_at = self.timestamp()
+                metrics.update(self.learner.timings.metrics(synchronize=False))
                 self.iteration = i
                 metrics.update(iteration=i, transitions=self.transitions,
                     elapsed_s=self.elapsed_before+time.monotonic()-self.started,
@@ -364,6 +373,7 @@ class VelocityTrainer:
                        "time/wm_s": fitted_at-collected_at, "time/policy_s": updated_at-fitted_at,
                        "throughput/transitions_per_s": self.args.num_envs*collect_steps/max(1e-6, updated_at-iteration_started)})
                 metrics.update(collection_steps=collect_steps, **{"updates/"+k:v for k,v in self.learner.counts.items()},
+                    **{"updates_this_iteration/"+k:v-counts_before[k] for k,v in self.learner.counts.items()},
                     **{"batch_sizes/wm": self.learning_cfg.wm_batch_size, "batch_sizes/policy": self.learning_cfg.policy_batch_size})
                 metrics.update(self.memory_metrics())
                 keys = [k for k, v in metrics.items() if isinstance(v, torch.Tensor)]

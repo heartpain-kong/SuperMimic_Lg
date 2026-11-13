@@ -45,6 +45,7 @@ class MuonAdam(torch.optim.Optimizer):
                 loss = closure()
         for group in self.param_groups:
             beta1, beta2 = group["betas"]
+            adam_batches = {}
             for parameter in group["params"]:
                 gradient = parameter.grad
                 if gradient is None:
@@ -64,9 +65,21 @@ class MuonAdam(torch.optim.Optimizer):
                     if not state:
                         state.update(step=0, exp_avg=torch.zeros_like(parameter), exp_avg_sq=torch.zeros_like(parameter))
                     state["step"] += 1
-                    state["exp_avg"].mul_(beta1).add_(gradient, alpha=1.-beta1)
-                    state["exp_avg_sq"].mul_(beta2).addcmul_(gradient, gradient, value=1.-beta2)
-                    step = state["step"]
-                    denom = state["exp_avg_sq"].sqrt()/math.sqrt(1.-beta2**step)+group["eps"]
-                    parameter.addcdiv_(state["exp_avg"], denom, value=-group["lr"]/(1.-beta1**step))
+                    # Keep the existing per-leaf state layout, including unequal
+                    # step counts when a parameter has no gradient. Multi-tensor
+                    # updates avoid launching each small Adam operation per leaf.
+                    key = (parameter.device, parameter.dtype, state["step"])
+                    adam_batches.setdefault(key, []).append((parameter, gradient, state))
+            for (_, _, step), batch in adam_batches.items():
+                params, gradients, states = zip(*batch)
+                means = [s["exp_avg"] for s in states]
+                variances = [s["exp_avg_sq"] for s in states]
+                torch._foreach_mul_(means, beta1)
+                torch._foreach_add_(means, gradients, alpha=1.-beta1)
+                torch._foreach_mul_(variances, beta2)
+                torch._foreach_addcmul_(variances, gradients, gradients, value=1.-beta2)
+                denominator = torch._foreach_sqrt(variances)
+                torch._foreach_div_(denominator, math.sqrt(1.-beta2**step))
+                torch._foreach_add_(denominator, group["eps"])
+                torch._foreach_addcdiv_(params, means, denominator, value=-group["lr"]/(1.-beta1**step))
         return loss

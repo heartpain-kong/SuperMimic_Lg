@@ -6,6 +6,7 @@ from torch.nn import functional as F
 
 from .optim import frozen_parameters, optimizer_step
 from .losses import contact_bce
+from .profiling import LearnerTimings
 from .returns import discounted_objective, lambda_returns
 from .rollout import imagine
 from ..tasks.velocity.schema import FRAME_DIM
@@ -69,6 +70,7 @@ class VelocityLearner:
                            for model, lr in ((world_model, self.cfg.wm_lr),
                                              (policy, self.cfg.actor_lr), (critic, self.cfg.critic_lr))]
         self.counts = dict(wm=0, actor=0, critic=0)
+        self.timings = LearnerTimings(next(policy.parameters()).device)
 
     def fields(self, policy=False):
         names = (["state", "context", "history", "previous", "command", "phase"] if policy
@@ -109,20 +111,22 @@ class VelocityLearner:
         depth = history[:, -1, FRAME_DIM:] if "depth" in rows else None
         condition = VelocityCondition(rows["command"][0], rows["phase"][0], depth)
         with frozen_parameters(self.wm, self.critic):
-            rollout = imagine(self.wm, self.policy, self.task, rows["state"][0], context,
-                history, rows["previous"][0], condition, cfg.horizon, reward_limit=cfg.reward_limit)
-            last_features = self.task.critic_features(self.wm, rollout.states[-1:], context, rollout.conditions[-1:])
-            bootstrap = self.critic(last_features[0])
-            objective = discounted_objective(rollout.rewards, rollout.termination, bootstrap, cfg.gamma)
-            if not torch.isfinite(objective).all() or float(objective.detach().abs().max()) > 1e4:
-                raise FloatingPointError("imagined return exploded (|J| > 1e4); inspect model accuracy")
-            bounds = rollout.action_bounds.mean()
-            actor_loss = -objective.mean()/(cfg.horizon if cfg.normalize_actor_loss else 1.)
-            actor_loss = actor_loss + cfg.action_bound_weight*bounds
-            grad = optimizer_step(actor_loss, self.policy, self.optimizers[1], cfg.grad_clip, cfg.actor_grad_value)
+            with self.timings.measure('actor_rollout'):
+                rollout = imagine(self.wm, self.policy, self.task, rows["state"][0], context,
+                    history, rows["previous"][0], condition, cfg.horizon, reward_limit=cfg.reward_limit)
+                last_features = self.task.critic_features(self.wm, rollout.states[-1:], context, rollout.conditions[-1:])
+                bootstrap = self.critic(last_features[0])
+                objective = discounted_objective(rollout.rewards, rollout.termination, bootstrap, cfg.gamma)
+                if not torch.isfinite(objective).all() or float(objective.detach().abs().max()) > 1e4:
+                    raise FloatingPointError("imagined return exploded (|J| > 1e4); inspect model accuracy")
+                bounds = rollout.action_bounds.mean()
+                actor_loss = -objective.mean()/(cfg.horizon if cfg.normalize_actor_loss else 1.)
+                actor_loss = actor_loss + cfg.action_bound_weight*bounds
+            with self.timings.measure('actor_backward'):
+                grad = optimizer_step(actor_loss, self.policy, self.optimizers[1], cfg.grad_clip, cfg.actor_grad_value)
             self.counts["actor"] += 1
 
-        with torch.no_grad():
+        with self.timings.measure('critic_targets'), torch.no_grad():
             features = self.task.critic_features(self.wm, rollout.states.detach(), context, rollout.conditions)
             # All values and the fixed GAE targets must use the same normalization
             # as the critic regression, including the final bootstrap state.
@@ -135,12 +139,13 @@ class VelocityLearner:
         total = len(targets_y)
         minibatches = min(cfg.critic_minibatches, total)
         loss = None
-        for _ in range(cfg.critic_epochs):
-            # tensor_split covers the remainder as well as N < minibatches.
-            for index in torch.randperm(total, device=inputs_x.device).tensor_split(minibatches):
-                loss = F.mse_loss(self.critic(inputs_x[index]), targets_y[index])
-                optimizer_step(loss, self.critic, self.optimizers[2], cfg.grad_clip)
-                self.counts["critic"] += 1
+        with self.timings.measure('critic_fit'):
+            for _ in range(cfg.critic_epochs):
+                # tensor_split covers the remainder as well as N < minibatches.
+                for index in torch.randperm(total, device=inputs_x.device).tensor_split(minibatches):
+                    loss = F.mse_loss(self.critic(inputs_x[index]), targets_y[index])
+                    optimizer_step(loss, self.critic, self.optimizers[2], cfg.grad_clip)
+                    self.counts["critic"] += 1
         return {"policy/actor_objective": objective.detach().mean(), "policy/actor_loss": actor_loss.detach(),
                 "policy/action_bound_loss": bounds.detach(), "policy/critic_loss": loss.detach(),
                 "policy/policy_grad_norm": grad, "policy/survival_end": rollout.survival[-1].detach().mean(),

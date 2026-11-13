@@ -1,0 +1,319 @@
+{
+  "date": "2026-11-13",
+  "package_version": "0.4.0",
+  "baseline_commit": "8662aff4a458a21e568e611c71d7ea401ffc6572",
+  "incident": {
+    "attachment_sha256": "0d5d645d8fde0ab4f94ac106355ef56210605cfa3cfb5c3e70af4d4edecc5ef2",
+    "actual_command_policy_updates": 30,
+    "latest_iteration": 606,
+    "elapsed_s": 46513.152728915986,
+    "updates_per_iteration": {
+      "wm": 5,
+      "actor": 30,
+      "critic": 600
+    },
+    "last_metrics": {
+      "real_reward": 3.226898193359375,
+      "velocity_error_xy_mps": 0.5478537082672119,
+      "yaw_error_rps": 0.32498839497566223,
+      "failures": 144,
+      "episodes": 144,
+      "wm_online_state_error": 0.050746820867061615,
+      "wm_online_contact_error": 0.17278341948986053,
+      "episode_length": 58.5,
+      "terrain_promotions": 0,
+      "terrain_demotions": 144,
+      "action_std": 0.9461779594421387,
+      "policy_action_saturation": 0.9903971552848816,
+      "policy_raw_action_abs": 56.541961669921875,
+      "exploration_noise": 0.09999999999999998,
+      "command_scale": 1.0,
+      "reward/velocity": 1.0128116607666016,
+      "reward/progress": 0.08691737055778503,
+      "reward/yaw": 0.6675950288772583,
+      "reward/upright": 0.4947379231452942,
+      "reward/height": 0.4381090998649597,
+      "reward/gait": 0.5525126457214355,
+      "reward/lift": 0.008955150842666626,
+      "reward/action_rate": -0.02553148940205574,
+      "reward/slip": -0.0007792436517775059,
+      "reward/energy": -0.008429869078099728,
+      "reward/joint_limit": 0.0,
+      "reward/trunk_contact": 0.0,
+      "wm/state_loss": 0.08737734705209732,
+      "wm/contact_loss": 0.2265547811985016,
+      "policy/actor_objective": 61.82239532470703,
+      "policy/actor_loss": 2034.1636962890625,
+      "policy/action_bound_loss": 2095.986083984375,
+      "policy/critic_loss": 675.9136352539062,
+      "policy/policy_grad_norm": 262832.625,
+      "policy/survival_end": 0.14357303082942963,
+      "policy/termination_mean": 0.23398514091968536,
+      "xmimic/ema_updates": 17610,
+      "xmimic/wm_lr": 0.00039999439339293756,
+      "xmimic/actor_lr": 0.0015999775735717502,
+      "iteration": 606,
+      "transitions": 3233792,
+      "elapsed_s": 46513.152728915986,
+      "time/collect_s": 0.15766956898733042,
+      "time/wm_s": 0.42714725199039094,
+      "time/policy_s": 78.54801672601025,
+      "throughput/transitions_per_s": 77.64160241212365,
+      "collection_steps": 3,
+      "updates/wm": 3030,
+      "updates/actor": 17610,
+      "updates/critic": 352200,
+      "batch_sizes/wm": 512,
+      "batch_sizes/policy": 256,
+      "memory/replay_gib": 0.37890625,
+      "memory/torch_allocated_gib": 0.43991804122924805,
+      "memory/torch_reserved_gib": 0.9296875,
+      "memory/torch_peak_gib": 0.9085855484008789,
+      "memory/device_used_gib": 2.085693359375
+    },
+    "policy_time_share": 0.9926096817873903
+  },
+  "full_size_comparison": {
+    "before": {
+      "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+      "hardware": {
+        "host": "kong",
+        "os": "Windows-11-10.0.26300-SP0",
+        "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+        "python": "3.12.14",
+        "torch": "2.14.1+cpu",
+        "cuda": null,
+        "gpu": [],
+        "gpu_identity_verified": false,
+        "cuda_device_count": 0
+      },
+      "device": "cpu",
+      "precision": "fp32",
+      "algorithm": "xmimic",
+      "config": {
+        "wm_batch_size": 512,
+        "policy_batch_size": 256,
+        "wm_horizon": 8,
+        "horizon": 32,
+        "wm_lr": 0.0004,
+        "actor_lr": 0.0004,
+        "critic_lr": 0.0004,
+        "actor_beta2": 0.95,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "critic_epochs": 5,
+        "critic_minibatches": 4,
+        "grad_clip": 1.0,
+        "actor_grad_value": 0.1,
+        "action_bound_weight": 1.0,
+        "reward_limit": 10.0,
+        "value_target_limit": 200.0,
+        "wm_loss_scale": "fixed",
+        "normalize_actor_loss": false,
+        "policy_ema_decay": 0.995,
+        "wm_mirror_fraction": 0.0,
+        "lr_decay_iterations": 250000,
+        "policy_lr_mult": 4.0,
+        "policy_lr_decay_start": 1400,
+        "policy_lr_decay_length": 300
+      },
+      "warmup": 1,
+      "timed_updates": 3,
+      "threads": 1,
+      "seconds": [
+        4.498432599997614,
+        4.1936978999874555,
+        4.280408100006753
+      ],
+      "median_s": 4.280408100006753,
+      "updates": {
+        "wm": 0,
+        "actor": 4,
+        "critic": 80
+      },
+      "metrics": {
+        "policy/actor_objective": 85.40143585205078,
+        "policy/actor_loss": -85.34864807128906,
+        "policy/action_bound_loss": 0.052791304886341095,
+        "policy/critic_loss": 1032.2254638671875,
+        "policy/policy_grad_norm": 48.33662033081055,
+        "policy/survival_end": 0.9377356171607971,
+        "policy/termination_mean": 0.0019764285534620285,
+        "xmimic/ema_updates": 4.0,
+        "xmimic/wm_lr": 0.0004,
+        "xmimic/actor_lr": 0.0016
+      },
+      "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+    },
+    "after": {
+      "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+      "hardware": {
+        "host": "kong",
+        "os": "Windows-11-10.0.26300-SP0",
+        "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+        "python": "3.12.14",
+        "torch": "2.14.1+cpu",
+        "cuda": null,
+        "gpu": [],
+        "gpu_identity_verified": false,
+        "cuda_device_count": 0
+      },
+      "device": "cpu",
+      "precision": "fp32",
+      "algorithm": "xmimic",
+      "config": {
+        "wm_batch_size": 512,
+        "policy_batch_size": 256,
+        "wm_horizon": 8,
+        "horizon": 32,
+        "wm_lr": 0.0004,
+        "actor_lr": 0.0004,
+        "critic_lr": 0.0004,
+        "actor_beta2": 0.95,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "critic_epochs": 5,
+        "critic_minibatches": 4,
+        "grad_clip": 1.0,
+        "actor_grad_value": 0.1,
+        "action_bound_weight": 1.0,
+        "reward_limit": 10.0,
+        "value_target_limit": 200.0,
+        "wm_loss_scale": "fixed",
+        "normalize_actor_loss": false,
+        "policy_ema_decay": 0.995,
+        "wm_mirror_fraction": 0.0,
+        "lr_decay_iterations": 250000,
+        "policy_lr_mult": 4.0,
+        "policy_lr_decay_start": 1400,
+        "policy_lr_decay_length": 300
+      },
+      "warmup": 1,
+      "timed_updates": 3,
+      "threads": 1,
+      "seconds": [
+        2.344728700001724,
+        2.5002888000017265,
+        2.4665854000049876
+      ],
+      "median_s": 2.4665854000049876,
+      "stage_seconds": [
+        {
+          "time/actor_rollout_s": 0.937021999998251,
+          "time/actor_backward_s": 1.0237091000017244,
+          "time/critic_targets_s": 0.149410900005023,
+          "time/critic_fit_s": 0.2125417000061134,
+          "time/policy_ema_s": 0.00048800000513438135
+        },
+        {
+          "time/actor_rollout_s": 0.9546760999946855,
+          "time/actor_backward_s": 1.144854199999827,
+          "time/critic_targets_s": 0.15933829999994487,
+          "time/critic_fit_s": 0.22124249998887535,
+          "time/policy_ema_s": 0.00040180000360123813
+        },
+        {
+          "time/actor_rollout_s": 0.9034825999988243,
+          "time/actor_backward_s": 1.1645119000022532,
+          "time/critic_targets_s": 0.16258530000050087,
+          "time/critic_fit_s": 0.2164279999997234,
+          "time/policy_ema_s": 0.00039999998989515007
+        }
+      ],
+      "updates": {
+        "wm": 0,
+        "actor": 4,
+        "critic": 80
+      },
+      "metrics": {
+        "policy/actor_objective": 85.40143585205078,
+        "policy/actor_loss": -85.34864807128906,
+        "policy/action_bound_loss": 0.052791304886341095,
+        "policy/critic_loss": 1032.2254638671875,
+        "policy/policy_grad_norm": 48.33662033081055,
+        "policy/survival_end": 0.9377356171607971,
+        "policy/termination_mean": 0.0019764285534620285,
+        "xmimic/ema_updates": 4.0,
+        "xmimic/wm_lr": 0.0004,
+        "xmimic/actor_lr": 0.0016
+      },
+      "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+    },
+    "median_speedup": 1.7353577540830727,
+    "identical_recorded_metrics": true,
+    "workload": "same batch256, H32, WM/actor/critic sizes, 20 critic steps and EMA per actor update"
+  },
+  "operator_profile": {
+    "batch": 64,
+    "horizon": 8,
+    "timed_updates_per_arm": 1,
+    "before_s": 0.7003943999879993,
+    "after_s": 0.24811410000256728,
+    "before_aten_calls": 234641,
+    "after_aten_calls": 82575,
+    "fraction_fewer_aten_calls": 0.6480794064123491,
+    "caveat": "ATen calls are CPU dispatcher events, not CUDA kernel counts"
+  },
+  "tests": {
+    "passed": 91,
+    "skipped": 2,
+    "warnings": 1,
+    "coverage": [
+      "MuJoCo pose/velocity external reference",
+      "double precision FK gradcheck",
+      "non-unit quaternion output/gradient parity",
+      "mixed dtypes",
+      "Adam missing-gradient counters and optimizer resume",
+      "EMA float/int buffers",
+      "BF16 real physics and per-iteration counts for 1/3 actor updates"
+    ]
+  },
+  "workbench": {
+    "passed": true,
+    "browser": "headless Microsoft Edge",
+    "checks": [
+      "algorithm switch",
+      "XMimic defaults",
+      "preview argv",
+      "depth guard",
+      "configuration persistence",
+      "4060 preset",
+      "390px layout",
+      "SuperMimic restoration",
+      "30 BPTT / 600 critic hint",
+      "conservative 4060 profile"
+    ],
+    "javascript_errors": []
+  },
+  "checkpoint_resume": {
+    "passed": true,
+    "original_iteration": 20,
+    "resumed_iteration": 21,
+    "original_updates": {
+      "wm": 40,
+      "actor": 20,
+      "critic": 160
+    },
+    "resumed_updates": {
+      "wm": 42,
+      "actor": 21,
+      "critic": 168
+    },
+    "ema_updates": 21,
+    "protocol": "pre-performance v6 checkpoint, full model/critic/Muon/Adam/EMA resume plus one physical training iteration"
+  },
+  "implementation_hashes": {
+    "core/supermimic_lg/state.py": "c6756c4e02dc680ff73cee6e58679e3f2509b91d2a997232fd175069ff0fd633",
+    "core/supermimic_lg/kinematics.py": "d7834f63a9598ad7dadb626a647480e9679096ec89e702ffdb99ee7220bb8f78",
+    "core/supermimic_lg/xmimic_lg/optim.py": "1ab07786bc20406f9a780386a79d2842edbc2ee0df8e8eed9712b770573fc1a6",
+    "core/supermimic_lg/xmimic_lg/ema.py": "1ea9f8b24e892867ed73fe1afcc935c10b64bea83fc4f0f278799375a584f877",
+    "core/supermimic_lg/learning/velocity.py": "8dbd84a0f91f707cfeda0a32a09097f3a06a624a2fe4864bc5bb58e3f5156bfa",
+    "core/supermimic_lg/learning/profiling.py": "e84b084dbb32c3653eecb920b11eefc5b2ba3510e5f0ebb1e666235d415b4fba"
+  },
+  "limitations": [
+    "CPU implementation throughput on fixed standing-state batches only",
+    "Actual RTX 4060 CUDA speedup and convergence remain unmeasured",
+    "Reducing policy_updates 30->1 changes training work and is excluded from measured implementation speedup",
+    "No automatic repair of the saturated actor in the user checkpoint"
+  ]
+}

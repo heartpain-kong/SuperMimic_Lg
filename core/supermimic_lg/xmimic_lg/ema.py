@@ -13,12 +13,19 @@ class PolicyEMA:
     @torch.no_grad()
     def update(self, policy):
         live = policy.state_dict()
+        groups = {}
         for key, averaged in self.model.state_dict().items():
             value = live[key]
-            if self.updates == 0 or not averaged.is_floating_point():
+            if not averaged.is_floating_point():
                 averaged.copy_(value)
             else:
-                averaged.lerp_(value, 1.-self.decay)
+                groups.setdefault((averaged.device, averaged.dtype), []).append((averaged, value))
+        for pairs in groups.values():
+            averaged, values = zip(*pairs)
+            if self.updates == 0:
+                torch._foreach_copy_(averaged, values)
+            else:
+                torch._foreach_lerp_(averaged, values, 1.-self.decay)
         self.updates += 1
 
     def state_dict(self):
