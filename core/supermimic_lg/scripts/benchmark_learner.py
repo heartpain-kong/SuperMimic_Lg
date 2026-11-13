@@ -20,7 +20,7 @@ def main():
     p.add_argument('--device', default='cpu')
     p.add_argument('--precision', choices=('fp32', 'bf16'), default='fp32')
     p.add_argument('--algorithm', choices=('xmimic', 'supermimic'), default='xmimic')
-    p.add_argument('--rollout-mode', choices=('batched', 'reference', 'compiled'), default='batched')
+    p.add_argument('--rollout-mode', choices=('batched', 'reference', 'compiled', 'auto'), default='batched')
     p.add_argument('--batch-size', type=int, default=256)
     p.add_argument('--horizon', type=int, default=32)
     p.add_argument('--warmup', type=int, default=1)
@@ -91,6 +91,7 @@ def main():
             stage_seconds.append(learner.timings.metrics(synchronize=False))
     report = dict(protocol='fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update',
         hardware=hardware(), device=args.device, precision=args.precision, algorithm=args.algorithm, rollout_mode=args.rollout_mode,
+        selected_rollout_mode=learner.rollout_mode,runtime_tuning=learner.runtime_tuning_report,
         config=asdict(cfg), warmup=args.warmup, timed_updates=args.updates, threads=args.threads,
         seconds=times, median_s=statistics.median(times), stage_seconds=stage_seconds, updates=dict(learner.counts),
         metrics={k:float(v) for k,v in metrics.items()},

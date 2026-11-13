@@ -74,6 +74,7 @@ class VelocityLearner:
         self.timings = LearnerTimings(next(policy.parameters()).device)
         self.rollout_mode = 'batched'
         self._compiled_step = None
+        self.runtime_tuning_report = None
 
     def fields(self, policy=False):
         names = (["state", "context", "history", "previous", "command", "phase"] if policy
@@ -107,6 +108,15 @@ class VelocityLearner:
         return {"wm/state_loss": state_loss.detach(), "wm/contact_loss": contact_loss.detach()}
 
     def update_policy(self, rows):
+        if self.rollout_mode == 'auto':
+            if next(self.policy.parameters()).device.type == 'cuda':
+                from .runtime_tuning import tune_rollout
+                self.runtime_tuning_report = tune_rollout(self,rows)
+                self.rollout_mode = self.runtime_tuning_report['selected']
+            else:
+                self.rollout_mode = 'batched'
+                self.runtime_tuning_report = dict(selected='batched',reason='CPU: compilation autotuning disabled',
+                    total_s=0.,training_state_restored=True)
         cfg = self.cfg
         with torch.no_grad():
             context = self.context(rows)

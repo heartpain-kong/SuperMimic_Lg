@@ -133,7 +133,7 @@ def build_command(data, root, run_dir):
             command += ["--algorithm", algorithm]
             if mode == 'velocity':
                 runtime = str(data.get('rollout_mode', 'batched'))
-                if runtime not in ('batched', 'reference', 'compiled'):
+                if runtime not in ('batched', 'reference', 'compiled', 'auto'):
                     raise ValueError('无效的想象执行方式')
                 command += ['--rollout-mode', runtime]
             if algorithm == "xmimic":

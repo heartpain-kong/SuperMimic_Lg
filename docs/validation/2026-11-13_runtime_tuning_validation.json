@@ -1,0 +1,427 @@
+{
+  "date": "2026-11-13",
+  "version": "0.6.0",
+  "baseline_commit": "225260e4c3ed1d3296f0aed4dc120a40a1455484",
+  "comparison": {
+    "before": {
+      "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+      "hardware": {
+        "host": "kong",
+        "os": "Windows-11-10.0.26300-SP0",
+        "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+        "python": "3.12.14",
+        "torch": "2.14.1+cpu",
+        "cuda": null,
+        "gpu": [],
+        "gpu_identity_verified": false,
+        "cuda_device_count": 0
+      },
+      "device": "cpu",
+      "precision": "fp32",
+      "algorithm": "xmimic",
+      "rollout_mode": "batched",
+      "config": {
+        "wm_batch_size": 512,
+        "policy_batch_size": 256,
+        "wm_horizon": 8,
+        "horizon": 32,
+        "wm_lr": 0.0004,
+        "actor_lr": 0.0004,
+        "critic_lr": 0.0004,
+        "actor_beta2": 0.95,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "critic_epochs": 5,
+        "critic_minibatches": 4,
+        "grad_clip": 1.0,
+        "actor_grad_value": 0.1,
+        "action_bound_weight": 1.0,
+        "reward_limit": 10.0,
+        "value_target_limit": 200.0,
+        "wm_loss_scale": "fixed",
+        "normalize_actor_loss": false,
+        "policy_ema_decay": 0.995,
+        "wm_mirror_fraction": 0.0,
+        "lr_decay_iterations": 250000,
+        "policy_lr_mult": 4.0,
+        "policy_lr_decay_start": 1400,
+        "policy_lr_decay_length": 300
+      },
+      "warmup": 1,
+      "timed_updates": 3,
+      "threads": 1,
+      "seconds": [
+        1.8367417999834288,
+        1.8805568999960087,
+        3.003073600004427
+      ],
+      "median_s": 1.8805568999960087,
+      "stage_seconds": [
+        {
+          "time/actor_rollout_s": 0.7789335999987088,
+          "time/actor_backward_s": 0.8160295999841765,
+          "time/critic_targets_s": 0.0332234000088647,
+          "time/critic_fit_s": 0.18772149999858811,
+          "time/policy_ema_s": 0.0004496999899856746
+        },
+        {
+          "time/actor_rollout_s": 0.7471530000038911,
+          "time/actor_backward_s": 0.8900119999889284,
+          "time/critic_targets_s": 0.033372200006851926,
+          "time/critic_fit_s": 0.1897029000101611,
+          "time/policy_ema_s": 0.000700599979609251
+        },
+        {
+          "time/actor_rollout_s": 0.9819551999971736,
+          "time/actor_backward_s": 1.6971186000155285,
+          "time/critic_targets_s": 0.056639500020537525,
+          "time/critic_fit_s": 0.253658000001451,
+          "time/policy_ema_s": 0.0005679999885614961
+        }
+      ],
+      "updates": {
+        "wm": 0,
+        "actor": 4,
+        "critic": 80
+      },
+      "metrics": {
+        "policy/actor_objective": 85.40143585205078,
+        "policy/actor_loss": -85.34864807128906,
+        "policy/action_bound_loss": 0.052791349589824677,
+        "policy/critic_loss": 1032.2254638671875,
+        "policy/policy_grad_norm": 48.33662796020508,
+        "policy/survival_end": 0.9377356171607971,
+        "policy/termination_mean": 0.0019764285534620285,
+        "xmimic/ema_updates": 4.0,
+        "xmimic/wm_lr": 0.0004,
+        "xmimic/actor_lr": 0.0016
+      },
+      "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+    },
+    "after": {
+      "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+      "hardware": {
+        "host": "kong",
+        "os": "Windows-11-10.0.26300-SP0",
+        "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+        "python": "3.12.14",
+        "torch": "2.14.1+cpu",
+        "cuda": null,
+        "gpu": [],
+        "gpu_identity_verified": false,
+        "cuda_device_count": 0
+      },
+      "device": "cpu",
+      "precision": "fp32",
+      "algorithm": "xmimic",
+      "rollout_mode": "batched",
+      "selected_rollout_mode": "batched",
+      "runtime_tuning": null,
+      "config": {
+        "wm_batch_size": 512,
+        "policy_batch_size": 256,
+        "wm_horizon": 8,
+        "horizon": 32,
+        "wm_lr": 0.0004,
+        "actor_lr": 0.0004,
+        "critic_lr": 0.0004,
+        "actor_beta2": 0.95,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "critic_epochs": 5,
+        "critic_minibatches": 4,
+        "grad_clip": 1.0,
+        "actor_grad_value": 0.1,
+        "action_bound_weight": 1.0,
+        "reward_limit": 10.0,
+        "value_target_limit": 200.0,
+        "wm_loss_scale": "fixed",
+        "normalize_actor_loss": false,
+        "policy_ema_decay": 0.995,
+        "wm_mirror_fraction": 0.0,
+        "lr_decay_iterations": 250000,
+        "policy_lr_mult": 4.0,
+        "policy_lr_decay_start": 1400,
+        "policy_lr_decay_length": 300
+      },
+      "warmup": 1,
+      "timed_updates": 3,
+      "threads": 1,
+      "seconds": [
+        1.8083531000011135,
+        1.9149703000148293,
+        1.9521759999915957
+      ],
+      "median_s": 1.9149703000148293,
+      "stage_seconds": [
+        {
+          "time/actor_rollout_s": 0.7341435999842361,
+          "time/actor_backward_s": 0.8180308000009973,
+          "time/critic_targets_s": 0.03544609999516979,
+          "time/critic_fit_s": 0.19712599998456426,
+          "time/policy_ema_s": 0.0004563000111375004
+        },
+        {
+          "time/actor_rollout_s": 0.7648362000181805,
+          "time/actor_backward_s": 0.9136214000172913,
+          "time/critic_targets_s": 0.0352654000162147,
+          "time/critic_fit_s": 0.18751360001624562,
+          "time/policy_ema_s": 0.00041619999683462083
+        },
+        {
+          "time/actor_rollout_s": 0.7328987999935634,
+          "time/actor_backward_s": 0.922991200000979,
+          "time/critic_targets_s": 0.03789400000823662,
+          "time/critic_fit_s": 0.2398836999782361,
+          "time/policy_ema_s": 0.00044589999015443027
+        }
+      ],
+      "updates": {
+        "wm": 0,
+        "actor": 4,
+        "critic": 80
+      },
+      "metrics": {
+        "policy/actor_objective": 85.40143585205078,
+        "policy/actor_loss": -85.34864807128906,
+        "policy/action_bound_loss": 0.052791181951761246,
+        "policy/critic_loss": 1032.2254638671875,
+        "policy/policy_grad_norm": 48.33662414550781,
+        "policy/survival_end": 0.9377356171607971,
+        "policy/termination_mean": 0.0019764285534620285,
+        "xmimic/ema_updates": 4.0,
+        "xmimic/wm_lr": 0.0004,
+        "xmimic/actor_lr": 0.0016
+      },
+      "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+    },
+    "ratio": 0.982029277415658,
+    "conclusion": "No stable additional CPU throughput improvement established"
+  },
+  "operator_profile": {
+    "batch": 64,
+    "horizon": 8,
+    "before_aten_calls": 39917,
+    "after_aten_calls": 39467,
+    "fraction_fewer": 0.011273392288999706,
+    "note": "CPU dispatcher calls, not CUDA kernels"
+  },
+  "tests": {
+    "passed": 111,
+    "skipped": 3,
+    "warnings": 3,
+    "log_sha256": "8eeaed2dbe404b421ad43227855fe7f6aee3585e2b3e462f7554320e48e423f3"
+  },
+  "checkpoint_resume": {
+    "passed": true,
+    "source_version": "0.5.0",
+    "original_iteration": 22,
+    "resumed_iteration": 23,
+    "original_updates": {
+      "wm": 44,
+      "actor": 22,
+      "critic": 176
+    },
+    "resumed_updates": {
+      "wm": 46,
+      "actor": 23,
+      "critic": 184
+    },
+    "ema_updates": 23,
+    "runtime": "batched"
+  },
+  "workbench": {
+    "passed": true,
+    "browser": "headless Microsoft Edge",
+    "checks": [
+      "algorithm switch",
+      "XMimic defaults",
+      "preview argv",
+      "depth guard",
+      "configuration persistence",
+      "4060 preset",
+      "390px layout",
+      "SuperMimic restoration",
+      "30 BPTT / 600 critic hint",
+      "conservative 4060 profile",
+      "auto preview and persistence",
+      "preset restores batched mode"
+    ],
+    "javascript_errors": []
+  },
+  "parameter_profile": {
+    "parsed": true,
+    "args": {
+      "algorithm": "xmimic",
+      "warmup_steps": 64,
+      "policy_ema_decay": 0.995,
+      "wm_mirror_fraction": 0.0,
+      "policy_lr_mult": 4.0,
+      "lr_decay_iterations": 250000,
+      "policy_lr_decay_start": 1400,
+      "policy_lr_decay_length": 300,
+      "mjlab_root": "$robot_root",
+      "robot_xml": null,
+      "task": "velocity",
+      "rollout_mode": "batched",
+      "motion_file": null,
+      "backend": "mjlab",
+      "terrain": "flat",
+      "device": "cuda:0",
+      "wm_batch_size": 512,
+      "policy_batch_size": 256,
+      "update_to_data_ratio": 0.4,
+      "wm_lr": 0.0004,
+      "actor_lr": 0.0001,
+      "critic_lr": 0.0004,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "actor_beta2": 0.95,
+      "actor_grad_value": 0.1,
+      "reward_limit": 10.0,
+      "value_target_limit": 200.0,
+      "critic_epochs": 5,
+      "critic_minibatches": 4,
+      "normalize_actor_loss": false,
+      "num_envs": 1024,
+      "iterations": 20000,
+      "collect_steps": 32,
+      "wm_updates": 5,
+      "policy_updates": 1,
+      "warmup_iterations": 20,
+      "batch_size": 512,
+      "wm_horizon": 8,
+      "horizon": 32,
+      "history": 4,
+      "goal_horizon": 10,
+      "replay_capacity": 128,
+      "episode_steps": 500,
+      "save_interval": 50,
+      "torch_threads": 4,
+      "wm_hidden": [
+        1024,
+        1024,
+        1024
+      ],
+      "actor_hidden": [
+        512,
+        256,
+        128
+      ],
+      "critic_hidden": [
+        256,
+        128
+      ],
+      "seed": 42,
+      "action_noise": 0.1,
+      "precision": "bf16",
+      "wm_loss_scale": "fixed",
+      "action_bound_weight": 1.0,
+      "max_training_seconds": 1200.0,
+      "explore_noise": 1.0,
+      "command_curriculum_iterations": 0,
+      "command_curriculum_start": 0.25,
+      "explore_iterations": 100,
+      "depth": false,
+      "depth_size": "18x24",
+      "depth_fov": 60.0,
+      "depth_range": 3.0,
+      "depth_feat": 32,
+      "depth_noise": 0.0,
+      "depth_dropout": 0.0,
+      "depth_latency": 0,
+      "output_dir": "$run_dir",
+      "resume": null,
+      "init_policy": null,
+      "command_vx": 0.4,
+      "command_vy": 0.0,
+      "command_yaw": 0.0,
+      "command_mode": "fixed",
+      "standing_fraction": 0.0,
+      "reward_velocity": 2.0,
+      "reward_progress": 0.5,
+      "reward_yaw": 1.0,
+      "reward_upright": 0.5,
+      "reward_height": 0.5,
+      "reward_gait": 0.3,
+      "reward_lift": 0.3,
+      "reward_action_rate": -0.05,
+      "reward_slip": -0.05,
+      "reward_energy": -0.002,
+      "reward_joint_limit": -2.0,
+      "reward_trunk_contact": -2.0,
+      "target_height": 0.3,
+      "swing_height": 0.06,
+      "velocity_tolerance": 0.5,
+      "yaw_tolerance": 0.5
+    },
+    "learning": {
+      "wm_batch_size": 512,
+      "policy_batch_size": 256,
+      "wm_horizon": 8,
+      "horizon": 32,
+      "wm_lr": 0.0004,
+      "actor_lr": 0.0001,
+      "critic_lr": 0.0004,
+      "actor_beta2": 0.95,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "critic_epochs": 5,
+      "critic_minibatches": 4,
+      "grad_clip": 1.0,
+      "actor_grad_value": 0.1,
+      "action_bound_weight": 1.0,
+      "reward_limit": 10.0,
+      "value_target_limit": 200.0,
+      "wm_loss_scale": "fixed",
+      "normalize_actor_loss": false,
+      "policy_ema_decay": 0.995,
+      "wm_mirror_fraction": 0.0,
+      "lr_decay_iterations": 250000,
+      "policy_lr_mult": 4.0,
+      "policy_lr_decay_start": 1400,
+      "policy_lr_decay_length": 300
+    }
+  },
+  "native_snapshot": {
+    "files": 33,
+    "sha256_match": true
+  },
+  "runtime_selection": {
+    "candidates": [
+      "batched",
+      "compiled"
+    ],
+    "warmup": 1,
+    "samples": 2,
+    "minimum_compiled_gain": 0.05,
+    "model_parity": {
+      "rtol": 0.02,
+      "atol": 0.0002
+    },
+    "restored": [
+      "models and normalization buffers",
+      "optimizer moments",
+      "EMA",
+      "iteration and update counts",
+      "gradients",
+      "Torch CPU/CUDA RNG",
+      "Python and NumPy RNG",
+      "stage timer events"
+    ]
+  },
+  "limitations": [
+    "CUDA/Inductor and RTX4060 performance untested locally",
+    "No convergence or saturated-policy recovery established",
+    "Autotuning numerical gate is a short probe, not long-term equivalence",
+    "Compilation and trial wall time count toward training budget"
+  ],
+  "isolated_wheel": {
+    "passed": true,
+    "isolated": true,
+    "version": "0.6.0",
+    "native_files": 33,
+    "auto_cli": true,
+    "auto_ui": true
+  }
+}

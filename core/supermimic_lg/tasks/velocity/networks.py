@@ -88,10 +88,15 @@ class VelocityWorldModel(nn.Module):
     def step(self, state, action, context):
         return self.step_from_features(state, action, self.features(state, context))
 
-    def step_from_features(self, state, action, features):
+    def step_from_features(self, state, action, features, normalizers=None):
         """Reuse the physical features for dynamics and later critic regression."""
-        x = self.in_norm.apply(torch.cat((features, action), -1))
-        physical = self.spec.integrate(state[:, :37], self.dynamics(x)*self.out_norm.std() + self.out_norm.mean)
+        inputs = torch.cat((features, action), -1)
+        if normalizers is None:
+            x, output_std = self.in_norm.apply(inputs), self.out_norm.std()
+        else:
+            input_std, output_std = normalizers
+            x = (inputs-self.in_norm.mean)/input_std
+        physical = self.spec.integrate(state[:, :37], self.dynamics(x)*output_std + self.out_norm.mean)
         return torch.cat((physical, self.contacts(x).float().sigmoid()), -1)
 
     @torch.no_grad()

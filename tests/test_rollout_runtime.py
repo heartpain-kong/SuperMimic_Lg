@@ -8,9 +8,33 @@ from supermimic_lg.learning.optim import optimizer_step, active_autocast_dtype
 from supermimic_lg.learning.rollout import imagine
 from supermimic_lg.learning.returns import discounted_objective
 from supermimic_lg.learning.optim import frozen_parameters
-from supermimic_lg.tasks.velocity.imagination import imagine_batched, critic_features, CompiledRecurrentStep
+from supermimic_lg.tasks.velocity.imagination import imagine_batched, critic_features, CompiledRecurrentStep, prepare_conditions
 from supermimic_lg.tasks.velocity.networks import VelocityWorldModel, VelocityPolicy, VelocityCritic
 from supermimic_lg.tasks.velocity.task import VelocityTask, VelocityCondition
+
+
+def test_prepared_phases_match_recurrence_for_moving_and_standing_commands():
+    task = VelocityTask(None)
+    phase = torch.tensor([[.6,.8],[.2,.9]], requires_grad=True)
+    initial = VelocityCondition(torch.tensor([[.4,0.,0.],[0.,0.,0.]]),phase)
+    prepared = prepare_conditions(task,initial,32)
+    reference = initial
+    for actual in prepared[1:]:
+        reference = task.advance(reference)
+        torch.testing.assert_close(actual.phase,reference.phase,atol=8e-7,rtol=2e-6)
+    a = torch.autograd.grad(prepared[-1].phase.sum(),phase,retain_graph=True)[0]
+    b = torch.autograd.grad(reference.phase.sum(),phase)[0]
+    torch.testing.assert_close(a,b,atol=8e-7,rtol=2e-6)
+
+
+def test_prepared_conditions_preserve_custom_task_advance():
+    class CustomTask(VelocityTask):
+        def advance(self,condition):
+            return VelocityCondition(condition.command+1,condition.phase+2)
+    initial = VelocityCondition(torch.zeros(2,3),torch.zeros(2,2))
+    prepared = prepare_conditions(CustomTask(None),initial,3)
+    torch.testing.assert_close(prepared[-1].command,torch.full((2,3),3.))
+    torch.testing.assert_close(prepared[-1].phase,torch.full((2,2),6.))
 
 
 @pytest.mark.parametrize('device', ['cpu', pytest.param('cuda', marks=pytest.mark.skipif(

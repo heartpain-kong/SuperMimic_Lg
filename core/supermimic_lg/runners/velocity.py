@@ -86,6 +86,7 @@ class VelocityTrainer:
             self.learner = VelocityLearner(self.wm, self.policy, self.critic, self.task, self.learning_cfg)
         self.optimizers = self.learner.optimizers
         self.learner.rollout_mode = getattr(args, 'rollout_mode', 'batched')
+        self._runtime_tuning_reported = False
         self.schedule = CollectionSchedule(args.collect_steps, getattr(args, "update_to_data_ratio", None))
         self.iteration = self.transitions = self.elapsed_before = 0
         from supermimic_lg.velocity_contract import shared_task_contract
@@ -344,6 +345,9 @@ class VelocityTrainer:
         if self.learner.rollout_mode == 'compiled':
             print('Experimental compiled recurrent step: the first policy update includes compilation; '
                   'use --rollout-mode batched for execution without compilation.', flush=True)
+        elif self.learner.rollout_mode == 'auto':
+            print('Experimental runtime trial: compilation and trial updates count toward the wall budget; '
+                  'trial weights, optimizer state, EMA, counters and RNG are restored before training.', flush=True)
         failed_oom = False
         try:
             if self.algorithm == "xmimic" and self.args.warmup_steps:
@@ -370,6 +374,13 @@ class VelocityTrainer:
                         with self.autocast():
                             for _ in range(self.args.policy_updates): metrics.update(self.update_policy())
                 updated_at = self.timestamp()
+                if self.learner.runtime_tuning_report is not None and not self._runtime_tuning_reported:
+                    print(json.dumps(dict(runtime_tuning=self.learner.runtime_tuning_report)),flush=True)
+                    self._runtime_tuning_reported = True
+                metrics.update({"runtime/compiled_selected":float(self.learner.rollout_mode=='compiled'),
+                    "runtime/reference_selected":float(self.learner.rollout_mode=='reference'),
+                    "runtime/tuning_total_s":0. if self.learner.runtime_tuning_report is None
+                                               else self.learner.runtime_tuning_report['total_s']})
                 metrics.update(self.learner.timings.metrics(synchronize=False))
                 self.iteration = i
                 metrics.update(iteration=i, transitions=self.transitions,
