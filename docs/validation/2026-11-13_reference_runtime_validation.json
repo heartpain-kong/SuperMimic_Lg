@@ -1,0 +1,520 @@
+{
+  "date": "2026-11-13",
+  "package_version": "0.5.0",
+  "baseline_commit": "8cf269e31a664ec293076f38a3afbbf1d33ae24a",
+  "sources": {
+    "xmimic": {
+      "root": "E:\\足式机器人\\SuperMimic\\代码\\xmimic-main\\xmimic-main",
+      "files": {
+        "xmimic/fast.py": "de9d2545d52586e004cd41a7c0f7351a07ae2b494c15806e227ce063ea062e04",
+        "xmimic/fast_nets.py": "4273fc9c3f7b0220d7bfa5e2c9308e72e662ea83f413d14f1e9a93d1131e3c90"
+      },
+      "revision": "local archive; no Git revision verified"
+    },
+    "CuboiLeo": {
+      "root": "E:\\足式机器人\\SuperMimic\\代码\\SuperMimic-Reproduced_CuboiLeo",
+      "files": {
+        "src/supermimic/imagination/compiled.py": "d9fe39c5faf9d14491c99d5c05cb084c823f3181b19e9ab0883948858b89d6bf",
+        "src/supermimic/imagination/policy_trainer.py": "9626e1b9683d7f6b0e9fd5979d09bcd08437a6508e8b90ba99f5484c677b946a"
+      },
+      "git_commit": "d9be385b3eeb13a638fb33fb200d3bfd9be9839f"
+    }
+  },
+  "changes": [
+    "batch reward/termination/FK over H*B",
+    "normalize each observation once",
+    "reuse WM physical features for bootstrap and critic targets",
+    "normalize/quantize fixed critic inputs once",
+    "optional fullgraph compiled recurrent step",
+    "invalidate AMP parameter cache after each optimizer step"
+  ],
+  "comparisons": [
+    {
+      "before": {
+        "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+        "hardware": {
+          "host": "kong",
+          "os": "Windows-11-10.0.26300-SP0",
+          "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+          "python": "3.12.14",
+          "torch": "2.14.1+cpu",
+          "cuda": null,
+          "gpu": [],
+          "gpu_identity_verified": false,
+          "cuda_device_count": 0
+        },
+        "device": "cpu",
+        "precision": "fp32",
+        "algorithm": "xmimic",
+        "rollout_mode": "batched",
+        "config": {
+          "wm_batch_size": 512,
+          "policy_batch_size": 256,
+          "wm_horizon": 8,
+          "horizon": 32,
+          "wm_lr": 0.0004,
+          "actor_lr": 0.0004,
+          "critic_lr": 0.0004,
+          "actor_beta2": 0.95,
+          "gamma": 0.99,
+          "gae_lambda": 0.95,
+          "critic_epochs": 5,
+          "critic_minibatches": 4,
+          "grad_clip": 1.0,
+          "actor_grad_value": 0.1,
+          "action_bound_weight": 1.0,
+          "reward_limit": 10.0,
+          "value_target_limit": 200.0,
+          "wm_loss_scale": "fixed",
+          "normalize_actor_loss": false,
+          "policy_ema_decay": 0.995,
+          "wm_mirror_fraction": 0.0,
+          "lr_decay_iterations": 250000,
+          "policy_lr_mult": 4.0,
+          "policy_lr_decay_start": 1400,
+          "policy_lr_decay_length": 300
+        },
+        "warmup": 1,
+        "timed_updates": 3,
+        "threads": 1,
+        "seconds": [
+          2.413826699994388,
+          2.504550300000119,
+          2.4549225000082515
+        ],
+        "median_s": 2.4549225000082515,
+        "stage_seconds": [
+          {
+            "time/actor_rollout_s": 0.9784141999989515,
+            "time/actor_backward_s": 1.0486250999965705,
+            "time/critic_targets_s": 0.15472790000785608,
+            "time/critic_fit_s": 0.2096179999934975,
+            "time/policy_ema_s": 0.0005176999984541908
+          },
+          {
+            "time/actor_rollout_s": 0.9180527999997139,
+            "time/actor_backward_s": 1.1558973000064725,
+            "time/critic_targets_s": 0.1665452000015648,
+            "time/critic_fit_s": 0.23991570000362117,
+            "time/policy_ema_s": 0.00047389999963343143
+          },
+          {
+            "time/actor_rollout_s": 0.9245205999905011,
+            "time/actor_backward_s": 1.1507408000034047,
+            "time/critic_targets_s": 0.14851509999425616,
+            "time/critic_fit_s": 0.20975899999029934,
+            "time/policy_ema_s": 0.0006047999922884628
+          }
+        ],
+        "updates": {
+          "wm": 0,
+          "actor": 4,
+          "critic": 80
+        },
+        "metrics": {
+          "policy/actor_objective": 85.40143585205078,
+          "policy/actor_loss": -85.34864807128906,
+          "policy/action_bound_loss": 0.052791304886341095,
+          "policy/critic_loss": 1032.2254638671875,
+          "policy/policy_grad_norm": 48.33662033081055,
+          "policy/survival_end": 0.9377356171607971,
+          "policy/termination_mean": 0.0019764285534620285,
+          "xmimic/ema_updates": 4.0,
+          "xmimic/wm_lr": 0.0004,
+          "xmimic/actor_lr": 0.0016
+        },
+        "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+      },
+      "after": {
+        "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+        "hardware": {
+          "host": "kong",
+          "os": "Windows-11-10.0.26300-SP0",
+          "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+          "python": "3.12.14",
+          "torch": "2.14.1+cpu",
+          "cuda": null,
+          "gpu": [],
+          "gpu_identity_verified": false,
+          "cuda_device_count": 0
+        },
+        "device": "cpu",
+        "precision": "fp32",
+        "algorithm": "xmimic",
+        "rollout_mode": "batched",
+        "config": {
+          "wm_batch_size": 512,
+          "policy_batch_size": 256,
+          "wm_horizon": 8,
+          "horizon": 32,
+          "wm_lr": 0.0004,
+          "actor_lr": 0.0004,
+          "critic_lr": 0.0004,
+          "actor_beta2": 0.95,
+          "gamma": 0.99,
+          "gae_lambda": 0.95,
+          "critic_epochs": 5,
+          "critic_minibatches": 4,
+          "grad_clip": 1.0,
+          "actor_grad_value": 0.1,
+          "action_bound_weight": 1.0,
+          "reward_limit": 10.0,
+          "value_target_limit": 200.0,
+          "wm_loss_scale": "fixed",
+          "normalize_actor_loss": false,
+          "policy_ema_decay": 0.995,
+          "wm_mirror_fraction": 0.0,
+          "lr_decay_iterations": 250000,
+          "policy_lr_mult": 4.0,
+          "policy_lr_decay_start": 1400,
+          "policy_lr_decay_length": 300
+        },
+        "warmup": 1,
+        "timed_updates": 3,
+        "threads": 1,
+        "seconds": [
+          2.0250470000028145,
+          2.0974628000112716,
+          2.080769299995154
+        ],
+        "median_s": 2.080769299995154,
+        "stage_seconds": [
+          {
+            "time/actor_rollout_s": 0.8114504999975907,
+            "time/actor_backward_s": 0.9399235999881057,
+            "time/critic_targets_s": 0.04112979999626987,
+            "time/critic_fit_s": 0.2152732999966247,
+            "time/policy_ema_s": 0.0005350999999791384
+          },
+          {
+            "time/actor_rollout_s": 0.8222142000013264,
+            "time/actor_backward_s": 1.0100606999912998,
+            "time/critic_targets_s": 0.03671069999109022,
+            "time/critic_fit_s": 0.21039950000704266,
+            "time/policy_ema_s": 0.0005137999978614971
+          },
+          {
+            "time/actor_rollout_s": 0.826836699998239,
+            "time/actor_backward_s": 0.981016699995962,
+            "time/critic_targets_s": 0.03932450000138488,
+            "time/critic_fit_s": 0.21689719999267254,
+            "time/policy_ema_s": 0.00041710000368766487
+          }
+        ],
+        "updates": {
+          "wm": 0,
+          "actor": 4,
+          "critic": 80
+        },
+        "metrics": {
+          "policy/actor_objective": 85.40143585205078,
+          "policy/actor_loss": -85.34864807128906,
+          "policy/action_bound_loss": 0.052791349589824677,
+          "policy/critic_loss": 1032.2254638671875,
+          "policy/policy_grad_norm": 48.33662796020508,
+          "policy/survival_end": 0.9377356171607971,
+          "policy/termination_mean": 0.0019764285534620285,
+          "xmimic/ema_updates": 4.0,
+          "xmimic/wm_lr": 0.0004,
+          "xmimic/actor_lr": 0.0016
+        },
+        "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+      },
+      "speedup": 1.1798148406043711,
+      "metrics_absolute_differences": {
+        "policy/actor_objective": 0.0,
+        "policy/actor_loss": 0.0,
+        "policy/action_bound_loss": 4.470348358154297e-08,
+        "policy/critic_loss": 0.0,
+        "policy/policy_grad_norm": 7.62939453125e-06,
+        "policy/survival_end": 0.0,
+        "policy/termination_mean": 0.0,
+        "xmimic/ema_updates": 0.0,
+        "xmimic/wm_lr": 0.0,
+        "xmimic/actor_lr": 0.0
+      }
+    },
+    {
+      "before": {
+        "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+        "hardware": {
+          "host": "kong",
+          "os": "Windows-11-10.0.26300-SP0",
+          "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+          "python": "3.12.14",
+          "torch": "2.14.1+cpu",
+          "cuda": null,
+          "gpu": [],
+          "gpu_identity_verified": false,
+          "cuda_device_count": 0
+        },
+        "device": "cpu",
+        "precision": "fp32",
+        "algorithm": "xmimic",
+        "config": {
+          "wm_batch_size": 512,
+          "policy_batch_size": 256,
+          "wm_horizon": 8,
+          "horizon": 32,
+          "wm_lr": 0.0004,
+          "actor_lr": 0.0004,
+          "critic_lr": 0.0004,
+          "actor_beta2": 0.95,
+          "gamma": 0.99,
+          "gae_lambda": 0.95,
+          "critic_epochs": 5,
+          "critic_minibatches": 4,
+          "grad_clip": 1.0,
+          "actor_grad_value": 0.1,
+          "action_bound_weight": 1.0,
+          "reward_limit": 10.0,
+          "value_target_limit": 200.0,
+          "wm_loss_scale": "fixed",
+          "normalize_actor_loss": false,
+          "policy_ema_decay": 0.995,
+          "wm_mirror_fraction": 0.0,
+          "lr_decay_iterations": 250000,
+          "policy_lr_mult": 4.0,
+          "policy_lr_decay_start": 1400,
+          "policy_lr_decay_length": 300
+        },
+        "warmup": 1,
+        "timed_updates": 3,
+        "threads": 1,
+        "seconds": [
+          2.516377599997213,
+          3.0093989000015426,
+          3.3749291999993147
+        ],
+        "median_s": 3.0093989000015426,
+        "stage_seconds": [
+          {
+            "time/actor_rollout_s": 0.9768337999994401,
+            "time/actor_backward_s": 1.1645377000095323,
+            "time/critic_targets_s": 0.1456983000098262,
+            "time/critic_fit_s": 0.2060040999931516,
+            "time/policy_ema_s": 0.0004793999978573993
+          },
+          {
+            "time/actor_rollout_s": 0.9963811000052374,
+            "time/actor_backward_s": 1.3432190000021365,
+            "time/critic_targets_s": 0.22363249999762047,
+            "time/critic_fit_s": 0.41683020000346005,
+            "time/policy_ema_s": 0.000538399996003136
+          },
+          {
+            "time/actor_rollout_s": 1.4037456000078237,
+            "time/actor_backward_s": 1.5195723999931943,
+            "time/critic_targets_s": 0.17977190000237897,
+            "time/critic_fit_s": 0.24933389999205247,
+            "time/policy_ema_s": 0.0004398000019136816
+          }
+        ],
+        "updates": {
+          "wm": 0,
+          "actor": 4,
+          "critic": 80
+        },
+        "metrics": {
+          "policy/actor_objective": 85.40143585205078,
+          "policy/actor_loss": -85.34864807128906,
+          "policy/action_bound_loss": 0.052791304886341095,
+          "policy/critic_loss": 1032.2254638671875,
+          "policy/policy_grad_norm": 48.33662033081055,
+          "policy/survival_end": 0.9377356171607971,
+          "policy/termination_mean": 0.0019764285534620285,
+          "xmimic/ema_updates": 4.0,
+          "xmimic/wm_lr": 0.0004,
+          "xmimic/actor_lr": 0.0016
+        },
+        "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+      },
+      "after": {
+        "protocol": "fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update",
+        "hardware": {
+          "host": "kong",
+          "os": "Windows-11-10.0.26300-SP0",
+          "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+          "python": "3.12.14",
+          "torch": "2.14.1+cpu",
+          "cuda": null,
+          "gpu": [],
+          "gpu_identity_verified": false,
+          "cuda_device_count": 0
+        },
+        "device": "cpu",
+        "precision": "fp32",
+        "algorithm": "xmimic",
+        "rollout_mode": "batched",
+        "config": {
+          "wm_batch_size": 512,
+          "policy_batch_size": 256,
+          "wm_horizon": 8,
+          "horizon": 32,
+          "wm_lr": 0.0004,
+          "actor_lr": 0.0004,
+          "critic_lr": 0.0004,
+          "actor_beta2": 0.95,
+          "gamma": 0.99,
+          "gae_lambda": 0.95,
+          "critic_epochs": 5,
+          "critic_minibatches": 4,
+          "grad_clip": 1.0,
+          "actor_grad_value": 0.1,
+          "action_bound_weight": 1.0,
+          "reward_limit": 10.0,
+          "value_target_limit": 200.0,
+          "wm_loss_scale": "fixed",
+          "normalize_actor_loss": false,
+          "policy_ema_decay": 0.995,
+          "wm_mirror_fraction": 0.0,
+          "lr_decay_iterations": 250000,
+          "policy_lr_mult": 4.0,
+          "policy_lr_decay_start": 1400,
+          "policy_lr_decay_length": 300
+        },
+        "warmup": 1,
+        "timed_updates": 3,
+        "threads": 1,
+        "seconds": [
+          2.0585101999895414,
+          2.06362739999895,
+          2.063315600011265
+        ],
+        "median_s": 2.063315600011265,
+        "stage_seconds": [
+          {
+            "time/actor_rollout_s": 0.848237500002142,
+            "time/actor_backward_s": 0.9384490999946138,
+            "time/critic_targets_s": 0.03902340000786353,
+            "time/critic_fit_s": 0.208873899988248,
+            "time/policy_ema_s": 0.0005654999986290932
+          },
+          {
+            "time/actor_rollout_s": 0.8308639999886509,
+            "time/actor_backward_s": 0.9751114000100642,
+            "time/critic_targets_s": 0.0373441000119783,
+            "time/critic_fit_s": 0.2054754000128014,
+            "time/policy_ema_s": 0.0004555999912554398
+          },
+          {
+            "time/actor_rollout_s": 0.823610200008261,
+            "time/actor_backward_s": 0.9672107999940636,
+            "time/critic_targets_s": 0.03703279999899678,
+            "time/critic_fit_s": 0.2204245000029914,
+            "time/policy_ema_s": 0.00042440000106580555
+          }
+        ],
+        "updates": {
+          "wm": 0,
+          "actor": 4,
+          "critic": 80
+        },
+        "metrics": {
+          "policy/actor_objective": 85.40143585205078,
+          "policy/actor_loss": -85.34864807128906,
+          "policy/action_bound_loss": 0.052791349589824677,
+          "policy/critic_loss": 1032.2254638671875,
+          "policy/policy_grad_norm": 48.33662796020508,
+          "policy/survival_end": 0.9377356171607971,
+          "policy/termination_mean": 0.0019764285534620285,
+          "xmimic/ema_updates": 4.0,
+          "xmimic/wm_lr": 0.0004,
+          "xmimic/actor_lr": 0.0016
+        },
+        "limitations": "Fixed-batch implementation benchmark; does not measure locomotion quality or simulation throughput"
+      },
+      "speedup": 1.4585257340104016,
+      "metrics_absolute_differences": {
+        "policy/actor_objective": 0.0,
+        "policy/actor_loss": 0.0,
+        "policy/action_bound_loss": 4.470348358154297e-08,
+        "policy/critic_loss": 0.0,
+        "policy/policy_grad_norm": 7.62939453125e-06,
+        "policy/survival_end": 0.0,
+        "policy/termination_mean": 0.0,
+        "xmimic/ema_updates": 0.0,
+        "xmimic/wm_lr": 0.0,
+        "xmimic/actor_lr": 0.0
+      }
+    }
+  ],
+  "conservative_cpu_speedup": 1.1798148406043711,
+  "baseline_note": "0.4.0 imported code uses the sequential driver; the optional harness mode attribute has no effect on that revision",
+  "operator_profile": {
+    "batch": 64,
+    "horizon": 8,
+    "before_aten_calls": 82575,
+    "after_aten_calls": 39917,
+    "fraction_fewer": 0.5165970330003027,
+    "previous_small_cpu_seconds": 0.24811410000256728,
+    "current_small_cpu_seconds": 0.2541835000010906,
+    "note": "CPU dispatcher calls, not CUDA kernel counts; no stable small-batch CPU speed improvement claimed"
+  },
+  "tests": {
+    "passed": 104,
+    "skipped": 3,
+    "warnings": 3,
+    "warning_notes": "one mjlab torch.jit warning plus two deprecations from deliberately simulating the old AMP API in a compatibility test",
+    "coverage": [
+      "H1/H8/H32 and history1/4 output/gradient equivalence",
+      "state/context/history/previous/command/phase and actor gradients",
+      "nonzero model Jacobian and clipped-action penalty",
+      "BF16 rollout equivalence",
+      "critic normalization and quantization reuse",
+      "FP32/BF16 CPU Dynamo/AOT eager fullgraph capture and backward",
+      "AMP stale-weight regression before/after fix",
+      "existing physics/depth/optimizer/UI contracts"
+    ]
+  },
+  "amp_cache": {
+    "before_optimizer_output": 2.0,
+    "output_after_update_with_stale_cache": 2.0,
+    "fresh_bf16_output": 1.6015625,
+    "updated_fp32_output": 1.600000023841858,
+    "native_cuda_test": "provided but skipped locally"
+  },
+  "checkpoint_resume": {
+    "passed": true,
+    "source_version": "0.4.0",
+    "original_iteration": 21,
+    "resumed_iteration": 22,
+    "original_updates": {
+      "wm": 42,
+      "actor": 21,
+      "critic": 168
+    },
+    "resumed_updates": {
+      "wm": 44,
+      "actor": 22,
+      "critic": 176
+    },
+    "ema_updates": 22,
+    "runtime": "batched"
+  },
+  "workbench": {
+    "passed": true,
+    "browser": "headless Microsoft Edge",
+    "checks": [
+      "algorithm switch",
+      "XMimic defaults",
+      "preview argv",
+      "depth guard",
+      "configuration persistence",
+      "4060 preset",
+      "390px layout",
+      "SuperMimic restoration",
+      "30 BPTT / 600 critic hint",
+      "conservative 4060 profile",
+      "compiled preview and persistence",
+      "preset restores batched mode"
+    ],
+    "javascript_errors": []
+  },
+  "limitations": [
+    "CPU fixed-batch throughput only; actual CUDA/RTX4060 speedup unmeasured",
+    "Experimental CUDA Inductor compilation not tested on this machine; AOT eager graph correctness tested",
+    "No locomotion convergence or automatic repair of a saturated actor established",
+    "FP32 implementation speedup excludes reductions in training updates; BF16 cache correctness is a separate fix"
+  ]
+}

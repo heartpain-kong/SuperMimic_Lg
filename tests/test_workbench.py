@@ -97,6 +97,11 @@ def test_velocity_workbench_needs_no_reference_motion(tmp_path):
     for flag,value in (('--algorithm','xmimic'),('--warmup-steps','8'),('--policy-ema-decay','0.9'),
                        ('--wm-mirror-fraction','0.25')):
         assert xm[xm.index(flag)+1]==value
+    assert xm[xm.index('--rollout-mode')+1] == 'batched'
+    for runtime in ('reference','compiled'):
+        cmd = wb.build_command(dict(mode='velocity',algorithm='xmimic',mjlab_root=str(tmp_path),
+            backend='mujoco',device='cpu',rollout_mode=runtime),tmp_path,tmp_path/runtime)
+        assert cmd[cmd.index('--rollout-mode')+1] == runtime
     with pytest.raises(ValueError,match='深度'):
         wb.build_command(dict(mode='velocity',algorithm='xmimic',depth='1',mjlab_root=str(tmp_path),
             backend='mujoco',device='cpu'),tmp_path,tmp_path/'badxm')

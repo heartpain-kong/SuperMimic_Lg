@@ -22,6 +22,7 @@ class ModelRollout:
     survival: torch.Tensor
     action_bounds: torch.Tensor
     conditions: tuple
+    cached_features: tuple | None = None
 
 
 def imagine(world_model, policy, task: DifferentiableTask, state, context, history,

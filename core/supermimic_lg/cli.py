@@ -26,6 +26,8 @@ def parser():
     p.add_argument("--mjlab-root", type=Path, default=Path("../unitree_rl_mjlab_lgdog"))
     p.add_argument("--robot-xml", type=Path)
     p.add_argument("--task", choices=("tracking", "velocity"), default="tracking")
+    p.add_argument('--rollout-mode', choices=('batched', 'reference', 'compiled'), default='batched',
+                   help='velocity: batched geometry (default), sequential reference, or experimental compiled recurrent step')
     p.add_argument("--motion-file", type=Path)
     p.add_argument("--backend", choices=("mjlab", "mujoco"), default="mjlab")
     from supermimic_lg.velocity_physics import TERRAINS

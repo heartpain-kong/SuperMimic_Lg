@@ -27,7 +27,11 @@ class VelocityPolicy(nn.Module):
             self.net[-1].bias.zero_()
 
     def forward(self, history):
-        return self.net(self.obs_norm.apply(history).flatten(1)).float()
+        return self.forward_normalized(self.obs_norm.apply(history))
+
+    def forward_normalized(self, history):
+        """Use a history whose frames were normalized when they were produced."""
+        return self.net(history.flatten(1)).float()
 
 
 class VelocityCritic(nn.Module):
@@ -40,7 +44,10 @@ class VelocityCritic(nn.Module):
         self.net = mlp(dim, tuple(hidden), 1)
 
     def forward(self, features):
-        return self.net(self.norm.apply(features)).float().squeeze(-1)
+        return self.forward_normalized(self.norm.apply(features))
+
+    def forward_normalized(self, features):
+        return self.net(features).float().squeeze(-1)
 
 
 class VelocityWorldModel(nn.Module):
@@ -79,7 +86,11 @@ class VelocityWorldModel(nn.Module):
         return self.in_norm.apply(self.raw_inputs(state, action, context))
 
     def step(self, state, action, context):
-        x = self.condition(state, action, context)
+        return self.step_from_features(state, action, self.features(state, context))
+
+    def step_from_features(self, state, action, features):
+        """Reuse the physical features for dynamics and later critic regression."""
+        x = self.in_norm.apply(torch.cat((features, action), -1))
         physical = self.spec.integrate(state[:, :37], self.dynamics(x)*self.out_norm.std() + self.out_norm.mean)
         return torch.cat((physical, self.contacts(x).float().sigmoid()), -1)
 

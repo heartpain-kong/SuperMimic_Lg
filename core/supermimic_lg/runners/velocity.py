@@ -85,6 +85,7 @@ class VelocityTrainer:
             self.learning_cfg = VelocityLearningConfig.from_args(args)
             self.learner = VelocityLearner(self.wm, self.policy, self.critic, self.task, self.learning_cfg)
         self.optimizers = self.learner.optimizers
+        self.learner.rollout_mode = getattr(args, 'rollout_mode', 'batched')
         self.schedule = CollectionSchedule(args.collect_steps, getattr(args, "update_to_data_ratio", None))
         self.iteration = self.transitions = self.elapsed_before = 0
         from supermimic_lg.velocity_contract import shared_task_contract
@@ -333,12 +334,16 @@ class VelocityTrainer:
     def run(self):
         title = "XMimic-Lg PyTorch BPTT" if self.algorithm == "xmimic" else "SuperMimic velocity BPTT"
         print(json.dumps(dict(algorithm=title, reference_motion=None,
+            rollout_mode=self.learner.rollout_mode,
             configured_updates_per_iteration=dict(wm=self.args.wm_updates, actor=self.args.policy_updates,
                 critic_max=self.args.policy_updates*self.learning_cfg.critic_epochs*self.learning_cfg.critic_minibatches),
             **self.metadata)), flush=True)
         if self.args.policy_updates > 1:
             print(f"Each iteration requests {self.args.policy_updates} full BPTT updates plus critic fits; "
                   "XMimic's starting profile uses 1. This count is independent of imagination horizon.", flush=True)
+        if self.learner.rollout_mode == 'compiled':
+            print('Experimental compiled recurrent step: the first policy update includes compilation; '
+                  'use --rollout-mode batched for execution without compilation.', flush=True)
         failed_oom = False
         try:
             if self.algorithm == "xmimic" and self.args.warmup_steps:

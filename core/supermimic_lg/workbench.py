@@ -131,6 +131,11 @@ def build_command(data, root, run_dir):
             if algorithm not in ("supermimic", "xmimic"):
                 raise ValueError("无效的训练算法")
             command += ["--algorithm", algorithm]
+            if mode == 'velocity':
+                runtime = str(data.get('rollout_mode', 'batched'))
+                if runtime not in ('batched', 'reference', 'compiled'):
+                    raise ValueError('无效的想象执行方式')
+                command += ['--rollout-mode', runtime]
             if algorithm == "xmimic":
                 if str(data.get("depth", "")).lower() in ("1", "true", "on", "yes"):
                     raise ValueError("XMimic-Lg 当前使用盲本体观测，深度请使用 SuperMimic")

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "supermimic-lg"
-version = "0.4.0"
+version = "0.5.0"
 description = "Generic SuperMimic differentiable world model with quadruped and LgDog1 adapters"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "torch>=2.1"]

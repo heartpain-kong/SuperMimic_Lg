@@ -20,6 +20,7 @@ def main():
     p.add_argument('--device', default='cpu')
     p.add_argument('--precision', choices=('fp32', 'bf16'), default='fp32')
     p.add_argument('--algorithm', choices=('xmimic', 'supermimic'), default='xmimic')
+    p.add_argument('--rollout-mode', choices=('batched', 'reference', 'compiled'), default='batched')
     p.add_argument('--batch-size', type=int, default=256)
     p.add_argument('--horizon', type=int, default=32)
     p.add_argument('--warmup', type=int, default=1)
@@ -49,6 +50,7 @@ def main():
     cfg = config(policy_batch_size=args.batch_size, horizon=args.horizon,
                  critic_epochs=5, critic_minibatches=4)
     learner = cls(wm, actor, critic, VelocityTask(feet), cfg)
+    learner.rollout_mode = args.rollout_mode
     state = torch.zeros(args.batch_size, 42, device=args.device)
     state[:, 2], state[:, 3] = .3, 1.
     state[:, 7:19] = state.new_tensor(lgdog1_spec().default_joint_pos)
@@ -88,7 +90,7 @@ def main():
         if hasattr(learner, 'timings'):
             stage_seconds.append(learner.timings.metrics(synchronize=False))
     report = dict(protocol='fixed LgDog standing-state batch, full actor backward plus 20 critic steps per update',
-        hardware=hardware(), device=args.device, precision=args.precision, algorithm=args.algorithm,
+        hardware=hardware(), device=args.device, precision=args.precision, algorithm=args.algorithm, rollout_mode=args.rollout_mode,
         config=asdict(cfg), warmup=args.warmup, timed_updates=args.updates, threads=args.threads,
         seconds=times, median_s=statistics.median(times), stage_seconds=stage_seconds, updates=dict(learner.counts),
         metrics={k:float(v) for k,v in metrics.items()},

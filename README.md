@@ -2,7 +2,9 @@
 
 这个目录把 `E:\足式机器人\SuperMimic\代码\SuperMimic-Reproduced_CuboiLeo` 的核心思路整理成可复用的四足实现：学习一个带上下文条件的可微动力学模型，用软终止概率保留 BPTT 梯度，再在模型中进行短视野想象更新。状态、动作、目标和跟踪奖励都按机器人维度生成，默认提供 Unitree Go2 与现有 `E:\mjlab\unitree_rl_mjlab_lgdog` 的 LgDog1 映射。
 
-当前 **0.4.0**（SuperMimic modular v5 / XMimic-Lg v6） 已把任务、网络、回放、学习核心与训练生命周期拆开，支持独立模型/策略批量、UTD 调度和可审计的更新计数。结构、参考源码、兼容入口与检查点迁移见 [重构说明](docs/REFACTOR_2026-11-12.md)。
+当前 **0.5.0**（SuperMimic modular v5 / XMimic-Lg v6） 已把任务、网络、回放、学习核心与训练生命周期拆开，支持独立模型/策略批量、UTD 调度和可审计的更新计数。结构、参考源码、兼容入口与检查点迁移见 [重构说明](docs/REFACTOR_2026-11-12.md)。
+
+0.5.0 继续参考本地 XMimic fast learner 与 CuboiLeo ImagStep：奖励按 H×B 批量计算、复用观测/critic 特征，并提供实验性编译单步。修复多个 BF16 优化器步骤共享 autocast 时可能复用旧权重缓存的问题。相同工作量的 CPU 大批次对照保守提升约 1.18×；CUDA/Inductor 实机性能尚未验证。[参考来源、正确性和实测方法](docs/REFERENCE_RUNTIME_2026-11-13.md)。
 
 0.4.0 批量计算四腿运动学、简化四元数旋转并批量更新 Adam/EMA；相同 H32/batch256/20 次 critic 更新的 CPU 策略更新中位耗时从 4.28 秒降至 2.47 秒。工作台新增每轮更新量与策略阶段耗时，4060 起步按钮使用 1 次 BPTT、20 轮预热和较低 actor 学习率。CUDA 加速幅度待实机对照，详见 [性能验证与复测方法](docs/PERFORMANCE_2026-11-13.md)。
 

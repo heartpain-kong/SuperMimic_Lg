@@ -4,13 +4,14 @@ import math
 import torch
 from torch.nn import functional as F
 
-from .optim import frozen_parameters, optimizer_step
+from .optim import frozen_parameters, optimizer_step, active_autocast_dtype
 from .losses import contact_bce
 from .profiling import LearnerTimings
 from .returns import discounted_objective, lambda_returns
 from .rollout import imagine
 from ..tasks.velocity.schema import FRAME_DIM
 from ..tasks.velocity.task import VelocityCondition
+from ..tasks.velocity.imagination import imagine_batched, critic_features, CompiledRecurrentStep
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,8 @@ class VelocityLearner:
                                              (policy, self.cfg.actor_lr), (critic, self.cfg.critic_lr))]
         self.counts = dict(wm=0, actor=0, critic=0)
         self.timings = LearnerTimings(next(policy.parameters()).device)
+        self.rollout_mode = 'batched'
+        self._compiled_step = None
 
     def fields(self, policy=False):
         names = (["state", "context", "history", "previous", "command", "phase"] if policy
@@ -112,9 +115,17 @@ class VelocityLearner:
         condition = VelocityCondition(rows["command"][0], rows["phase"][0], depth)
         with frozen_parameters(self.wm, self.critic):
             with self.timings.measure('actor_rollout'):
-                rollout = imagine(self.wm, self.policy, self.task, rows["state"][0], context,
-                    history, rows["previous"][0], condition, cfg.horizon, reward_limit=cfg.reward_limit)
-                last_features = self.task.critic_features(self.wm, rollout.states[-1:], context, rollout.conditions[-1:])
+                if self.rollout_mode not in ('reference', 'batched', 'compiled'):
+                    raise ValueError('unknown rollout execution mode')
+                runtime = {}
+                if self.rollout_mode == 'compiled':
+                    if self._compiled_step is None:
+                        self._compiled_step = CompiledRecurrentStep(self.wm,self.policy,self.task)
+                    runtime['step_fn'] = self._compiled_step
+                rollout_fn = imagine if self.rollout_mode == 'reference' else imagine_batched
+                rollout = rollout_fn(self.wm, self.policy, self.task, rows["state"][0], context,
+                    history, rows["previous"][0], condition, cfg.horizon, reward_limit=cfg.reward_limit, **runtime)
+                last_features = critic_features(rollout, self.task, self.wm, context, last_only=True)
                 bootstrap = self.critic(last_features[0])
                 objective = discounted_objective(rollout.rewards, rollout.termination, bootstrap, cfg.gamma)
                 if not torch.isfinite(objective).all() or float(objective.detach().abs().max()) > 1e4:
@@ -127,15 +138,22 @@ class VelocityLearner:
             self.counts["actor"] += 1
 
         with self.timings.measure('critic_targets'), torch.no_grad():
-            features = self.task.critic_features(self.wm, rollout.states.detach(), context, rollout.conditions)
+            features = critic_features(rollout, self.task, self.wm, context)
             # All values and the fixed GAE targets must use the same normalization
             # as the critic regression, including the final bootstrap state.
             self.critic.norm.update(features)
-            values = self.critic(features.flatten(0, 1)).reshape(cfg.horizon+1, -1)
+            normalized = self.critic.norm.apply(features)
+            dtype = active_autocast_dtype(normalized.device.type)
+            if dtype is not None:
+                # The first Linear would cast every gathered minibatch to this
+                # dtype anyway. Quantize the fixed regression batch once.
+                normalized = normalized.to(dtype)
+            values = self.critic.forward_normalized(normalized.flatten(0, 1)).reshape(cfg.horizon+1, -1)
             targets = lambda_returns(rollout.rewards, rollout.termination, values, cfg.gamma, cfg.gae_lambda)
             if cfg.value_target_limit:
                 targets = targets.clamp(-cfg.value_target_limit, cfg.value_target_limit)
-            inputs_x, targets_y = features[:-1].flatten(0, 1), targets.flatten()
+            inputs_x, targets_y = normalized[:-1].flatten(0, 1), targets.flatten()
+        torch.clear_autocast_cache()  # Separate no-grad target evaluation from trainable critic forwards.
         total = len(targets_y)
         minibatches = min(cfg.critic_minibatches, total)
         loss = None
@@ -143,7 +161,7 @@ class VelocityLearner:
             for _ in range(cfg.critic_epochs):
                 # tensor_split covers the remainder as well as N < minibatches.
                 for index in torch.randperm(total, device=inputs_x.device).tensor_split(minibatches):
-                    loss = F.mse_loss(self.critic(inputs_x[index]), targets_y[index])
+                    loss = F.mse_loss(self.critic.forward_normalized(inputs_x[index]), targets_y[index])
                     optimizer_step(loss, self.critic, self.optimizers[2], cfg.grad_clip)
                     self.counts["critic"] += 1
         return {"policy/actor_objective": objective.detach().mean(), "policy/actor_loss": actor_loss.detach(),
