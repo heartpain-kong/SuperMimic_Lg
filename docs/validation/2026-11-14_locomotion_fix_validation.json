@@ -1,0 +1,989 @@
+{
+  "date": "2026-11-14",
+  "version": "0.7.0",
+  "baseline_commit": "d8f2262cf10fbd1959cfc5f8e6cea07f3aa6b6b5",
+  "user_log": {
+    "name": "lg (4)",
+    "sha256": "a4493f210ada75cf167093fd70a8024f72e2e75d63e631f83cb31776e003769a",
+    "command_vx": 0.4,
+    "iteration": 1925,
+    "elapsed_s": 1200.028279124,
+    "velocity_error_xy_mps": 0.3865988850593567,
+    "progress_reward": 0.01840197481215,
+    "total_reward": 3.2331035137176514,
+    "ended_normally": true
+  },
+  "static_regression": {
+    "before": 3.389948844909668,
+    "after": 0.0,
+    "case": "ideal upright stationary synthetic state under forward command; not a locomotion evaluation"
+  },
+  "legacy_formula": {
+    "passed": true,
+    "states": 12,
+    "reward_max_abs": 0.0,
+    "gradient_max_abs": 4.76837158203125e-07,
+    "reference_commit": "d8f2262cf10fbd1959cfc5f8e6cea07f3aa6b6b5"
+  },
+  "tests": {
+    "passed": 127,
+    "skipped": 3,
+    "warnings": 3,
+    "reason_for_skips": "CUDA unavailable",
+    "log_sha256": "55444e35155cdd08ade221813b164bc11476cc4e7f34da7149246f81b8b84a7d"
+  },
+  "workbench": {
+    "passed": true,
+    "browser": "headless Microsoft Edge",
+    "checks": [
+      "algorithm switch",
+      "XMimic defaults",
+      "preview argv",
+      "depth guard",
+      "configuration persistence",
+      "4060 preset",
+      "390px layout",
+      "SuperMimic restoration",
+      "30 BPTT / 600 critic hint",
+      "conservative 4060 profile",
+      "auto preview and persistence",
+      "preset restores batched mode",
+      "motion reward preview/persistence/preset"
+    ],
+    "javascript_errors": []
+  },
+  "isolated_wheel": {
+    "passed": true,
+    "isolated": true,
+    "version": "0.7.0",
+    "native_files": 33,
+    "script_flags": 153,
+    "motion_reward_mode": "progress",
+    "old_checkpoint_policy_load": true,
+    "post_training_evaluation": true,
+    "learning": {
+      "wm_batch_size": 512,
+      "policy_batch_size": 256,
+      "wm_horizon": 8,
+      "horizon": 32,
+      "wm_lr": 0.0004,
+      "actor_lr": 0.0001,
+      "critic_lr": 0.0004,
+      "actor_beta2": 0.95,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "critic_epochs": 5,
+      "critic_minibatches": 4,
+      "grad_clip": 1.0,
+      "actor_grad_value": 0.1,
+      "action_bound_weight": 1.0,
+      "reward_limit": 10.0,
+      "value_target_limit": 200.0,
+      "wm_loss_scale": "fixed",
+      "normalize_actor_loss": false,
+      "policy_ema_decay": 0.995,
+      "wm_mirror_fraction": 0.0,
+      "lr_decay_iterations": 250000,
+      "policy_lr_mult": 4.0,
+      "policy_lr_decay_start": 1400,
+      "policy_lr_decay_length": 300
+    }
+  },
+  "cpu_paired": {
+    "protocol": "MuJoCo CPU, seed42, 16 envs, 64 iterations per formula; raw/EMA/zero evaluated without exploration for 10s with seeds0/1/42",
+    "shared_args": {
+      "algorithm": "xmimic",
+      "warmup_steps": 64,
+      "policy_ema_decay": 0.995,
+      "wm_mirror_fraction": 0.0,
+      "policy_lr_mult": 4.0,
+      "lr_decay_iterations": 250000,
+      "policy_lr_decay_start": 1400,
+      "policy_lr_decay_length": 300,
+      "mjlab_root": "..\\unitree_rl_mjlab_lgdog",
+      "robot_xml": "E:\\mjlab\\unitree_rl_mjlab_lgdog\\unitree_rl_mjlab_lgdog\\src\\assets\\robots\\lgdog1\\xmls\\lgdog1.xml",
+      "task": "velocity",
+      "rollout_mode": "batched",
+      "motion_file": null,
+      "backend": "mujoco",
+      "terrain": "flat",
+      "device": "cpu",
+      "wm_batch_size": 64,
+      "policy_batch_size": 32,
+      "update_to_data_ratio": 0.4,
+      "wm_lr": 0.0004,
+      "actor_lr": 0.0001,
+      "critic_lr": 0.0004,
+      "gamma": null,
+      "gae_lambda": null,
+      "actor_beta2": 0.95,
+      "actor_grad_value": 0.1,
+      "reward_limit": null,
+      "value_target_limit": null,
+      "critic_epochs": 5,
+      "critic_minibatches": 4,
+      "normalize_actor_loss": false,
+      "num_envs": 16,
+      "iterations": 64,
+      "collect_steps": 16,
+      "wm_updates": 5,
+      "policy_updates": 1,
+      "warmup_iterations": 20,
+      "batch_size": 128,
+      "wm_horizon": 8,
+      "horizon": 32,
+      "history": 4,
+      "goal_horizon": 10,
+      "replay_capacity": 128,
+      "episode_steps": 500,
+      "save_interval": 100,
+      "torch_threads": 1,
+      "wm_hidden": [
+        64,
+        64
+      ],
+      "actor_hidden": [
+        64,
+        64
+      ],
+      "critic_hidden": [
+        64,
+        32
+      ],
+      "seed": 42,
+      "action_noise": 0.1,
+      "precision": "fp32",
+      "wm_loss_scale": "fixed",
+      "action_bound_weight": 1.0,
+      "max_training_seconds": 0.0,
+      "explore_noise": 1.0,
+      "command_curriculum_iterations": 0,
+      "command_curriculum_start": 0.25,
+      "explore_iterations": 100,
+      "depth": false,
+      "depth_size": "18x24",
+      "depth_fov": 60.0,
+      "depth_range": 3.0,
+      "depth_feat": 32,
+      "depth_noise": 0.0,
+      "depth_dropout": 0.0,
+      "depth_latency": 0,
+      "resume": null,
+      "init_policy": null,
+      "command_vx": 0.4,
+      "command_vy": 0.0,
+      "command_yaw": 0.0,
+      "command_mode": "fixed",
+      "standing_fraction": 0.0,
+      "reward_velocity": 2.0,
+      "reward_progress": 0.5,
+      "reward_yaw": 1.0,
+      "reward_upright": 0.5,
+      "reward_height": 0.5,
+      "reward_gait": 0.3,
+      "reward_lift": 0.3,
+      "reward_action_rate": -0.05,
+      "reward_slip": -0.05,
+      "reward_energy": -0.002,
+      "reward_joint_limit": -2.0,
+      "reward_trunk_contact": -2.0,
+      "target_height": 0.3,
+      "swing_height": 0.06,
+      "velocity_tolerance": 0.5,
+      "yaw_tolerance": 0.5
+    },
+    "results": {
+      "legacy": {
+        "final_training_metrics": {
+          "real_reward": 3.2506678104400635,
+          "velocity_error_xy_mps": 0.3619067966938019,
+          "yaw_error_rps": 0.19373519718647003,
+          "failures": 0,
+          "episodes": 0,
+          "wm_online_state_error": 0.02875690720975399,
+          "wm_online_contact_error": 1.1911677122116089,
+          "episode_length": 0.0,
+          "terrain_promotions": 0,
+          "terrain_demotions": 0,
+          "action_std": 0.4284851849079132,
+          "policy_action_saturation": 0.0,
+          "policy_raw_action_abs": 0.037907421588897705,
+          "velocity_x_mps": 0.04875155910849571,
+          "velocity_y_mps": 0.031164905056357384,
+          "yaw_rate_rps": 0.03759044036269188,
+          "wm_online_velocity_xy_rmse_mps": 0.03918266885962871,
+          "exploration_noise": 0.43299999999999994,
+          "command_scale": 1.0,
+          "reward/velocity": 1.1854346990585327,
+          "reward/progress": 0.060939446091651917,
+          "reward/yaw": 0.8178420066833496,
+          "reward/upright": 0.4998311996459961,
+          "reward/height": 0.4979104697704315,
+          "reward/gait": 0.1642543077468872,
+          "reward/lift": 0.046841103583574295,
+          "reward/action_rate": -0.018937701359391212,
+          "reward/slip": -0.0010071973083540797,
+          "reward/energy": -0.0024403673596680164,
+          "reward/joint_limit": 0.0,
+          "reward/trunk_contact": 0.0,
+          "wm/state_loss": 0.08455494046211243,
+          "wm/contact_loss": 0.4651665687561035,
+          "wm/velocity_xy_rmse_mps": 0.11171936243772507,
+          "policy/actor_objective": 80.00403594970703,
+          "policy/actor_loss": -80.00403594970703,
+          "policy/imagined_velocity_error_xy_mps": 0.3773932456970215,
+          "policy/action_bound_loss": 0.0,
+          "policy/critic_loss": 62.209774017333984,
+          "policy/policy_grad_norm": 63.07955551147461,
+          "policy/survival_end": 0.4000571072101593,
+          "policy/termination_mean": 0.02842606045305729,
+          "xmimic/ema_updates": 45,
+          "xmimic/wm_lr": 0.0003999999392043455,
+          "xmimic/actor_lr": 0.0003999999392043455,
+          "runtime/compiled_selected": 0.0,
+          "runtime/reference_selected": 0.0,
+          "runtime/tuning_total_s": 0.0,
+          "time/actor_rollout_s": 0.5357191000075545,
+          "time/actor_backward_s": 0.5435539000027347,
+          "time/critic_targets_s": 0.010825799981830642,
+          "time/critic_fit_s": 0.09143380000023171,
+          "time/policy_ema_s": 0.00037670001620426774,
+          "iteration": 64,
+          "transitions": 3584,
+          "elapsed_s": 163.21799999999348,
+          "time/collect_s": 0.211299600021448,
+          "time/wm_s": 1.1305634999880567,
+          "time/policy_s": 1.1932312000135425,
+          "throughput/transitions_per_s": 18.934206904872777,
+          "collection_steps": 3,
+          "updates/wm": 320,
+          "updates/actor": 45,
+          "updates/critic": 900,
+          "updates_this_iteration/wm": 5,
+          "updates_this_iteration/actor": 1,
+          "updates_this_iteration/critic": 20,
+          "batch_sizes/wm": 64,
+          "batch_sizes/policy": 32,
+          "memory/replay_gib": 0.002960205078125
+        },
+        "evaluation": {
+          "algorithm": "xmimic_velocity_bptt",
+          "policy_source": "all",
+          "checkpoint_sha256": "04c1c8e1bb8ebd496cfaf85ca40e2d003ac2f49acd1c4af7ceed325cd89e2542",
+          "xml_sha256": "f1ca7f33118514fd962014a0f88555ff494e8e76977ba0908979631a0298ebc3",
+          "iteration": 64,
+          "training_seconds": 163.21799999999348,
+          "hardware": {
+            "host": "kong",
+            "os": "Windows-11-10.0.26300-SP0",
+            "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+            "python": "3.12.14",
+            "torch": "2.14.1+cpu",
+            "cuda": null,
+            "gpu": [],
+            "gpu_identity_verified": false,
+            "cuda_device_count": 0
+          },
+          "protocol": {
+            "terrain": "flat",
+            "level": 1,
+            "seeds": [
+              0,
+              1,
+              42
+            ],
+            "seconds": 10.0,
+            "fixed_command": [
+              0.4,
+              0.0,
+              0.0
+            ],
+            "backend": "mujoco",
+            "action_noise": 0.0,
+            "depth_sensor": null
+          },
+          "results": {
+            "raw": {
+              "velocity_error_xy_mps": 0.3999815130432447,
+              "yaw_error_rps": 0.0008620017776435513,
+              "command_aligned_progress_m": 0.00017243686436548464,
+              "survival_seconds": 10.0,
+              "action_saturation": 0.0,
+              "raw_action_abs": 0.039380717493593696,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3999899577498436,
+                  "yaw_error_rps": 0.0008117851045681164,
+                  "command_aligned_progress_m": 8.570612817493384e-05,
+                  "commanded_distance_m": 4.000000112652754,
+                  "min_clearance_m": 0.28461769223213196,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.039431902915239334,
+                  "evaluation_seconds": 6.39100000000326
+                },
+                {
+                  "seed": 1,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3999715338349342,
+                  "yaw_error_rps": 0.000908275611254794,
+                  "command_aligned_progress_m": 0.00027339174036455915,
+                  "commanded_distance_m": 4.000000101327868,
+                  "min_clearance_m": 0.2845552861690521,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.039320673920214176,
+                  "evaluation_seconds": 4.921999999991385
+                },
+                {
+                  "seed": 42,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3999830475449562,
+                  "yaw_error_rps": 0.0008659446171077434,
+                  "command_aligned_progress_m": 0.0001582127245569609,
+                  "commanded_distance_m": 4.000000125169729,
+                  "min_clearance_m": 0.2845790386199951,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.039389575645327565,
+                  "evaluation_seconds": 4.437000000005355
+                }
+              ],
+              "failure_rate": 0.0
+            },
+            "ema": {
+              "velocity_error_xy_mps": 0.39979406319061916,
+              "yaw_error_rps": 0.0001772792095953264,
+              "command_aligned_progress_m": 0.0020506965259012113,
+              "survival_seconds": 10.0,
+              "action_saturation": 0.0,
+              "raw_action_abs": 0.002841374017919103,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3998011402487755,
+                  "yaw_error_rps": 0.0002213779750163667,
+                  "command_aligned_progress_m": 0.001978172457874905,
+                  "commanded_distance_m": 4.000000140070886,
+                  "min_clearance_m": 0.2880033850669861,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0028447311264462767,
+                  "evaluation_seconds": 5.937999999994645
+                },
+                {
+                  "seed": 1,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3997850520014763,
+                  "yaw_error_rps": 0.0001751155107554041,
+                  "command_aligned_progress_m": 0.002141693253406629,
+                  "commanded_distance_m": 4.000000134706475,
+                  "min_clearance_m": 0.2879459857940674,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.002838812378235161,
+                  "evaluation_seconds": 5.484000000025844
+                },
+                {
+                  "seed": 42,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3997959973216057,
+                  "yaw_error_rps": 0.00013534414301420838,
+                  "command_aligned_progress_m": 0.0020322238664221004,
+                  "commanded_distance_m": 4.000000202655779,
+                  "min_clearance_m": 0.2879718244075775,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.002840578549075872,
+                  "evaluation_seconds": 6.140999999974156
+                }
+              ],
+              "failure_rate": 0.0
+            },
+            "zero_action": {
+              "velocity_error_xy_mps": 0.39974301598469414,
+              "yaw_error_rps": 0.00012422165855969068,
+              "command_aligned_progress_m": 0.0025619175568891706,
+              "survival_seconds": 10.0,
+              "action_saturation": 0.0,
+              "raw_action_abs": 0.0,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3997497798204422,
+                  "yaw_error_rps": 0.00018396562983616604,
+                  "command_aligned_progress_m": 0.002492366699698323,
+                  "commanded_distance_m": 4.00000012457366,
+                  "min_clearance_m": 0.28816673159599304,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0,
+                  "evaluation_seconds": 7.344000000011874
+                },
+                {
+                  "seed": 1,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39973424005508423,
+                  "yaw_error_rps": 0.00011457418998747926,
+                  "command_aligned_progress_m": 0.0026507024834785398,
+                  "commanded_distance_m": 4.000000166296919,
+                  "min_clearance_m": 0.28811076283454895,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0,
+                  "evaluation_seconds": 6.6710000000020955
+                },
+                {
+                  "seed": 42,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39974502807855605,
+                  "yaw_error_rps": 7.412515585542679e-05,
+                  "command_aligned_progress_m": 0.002542683487490649,
+                  "commanded_distance_m": 4.000000060796695,
+                  "min_clearance_m": 0.2881363332271576,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0,
+                  "evaluation_seconds": 8.828999999997905
+                }
+              ],
+              "failure_rate": 0.0
+            }
+          },
+          "assessment": {
+            "raw": {
+              "status": "needs_training",
+              "motion_verified": false,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 2.142653204373346e-05
+                },
+                {
+                  "seed": 1,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 6.834793509113979e-05
+                },
+                {
+                  "seed": 42,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 3.955318113924022e-05
+                }
+              ],
+              "criteria": {
+                "min_progress_fraction": 0.7,
+                "max_error_fraction_of_command_speed": 0.5,
+                "max_error_floor_mps": 0.05,
+                "min_error_improvement_fraction": 0.1,
+                "min_error_improvement_floor_mps": 0.02,
+                "all_seeds_must_pass": true
+              }
+            },
+            "ema": {
+              "status": "needs_training",
+              "motion_verified": false,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0004945431144687262
+                },
+                {
+                  "seed": 1,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0005354233133516573
+                },
+                {
+                  "seed": 42,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0005080559666055251
+                }
+              ],
+              "criteria": {
+                "min_progress_fraction": 0.7,
+                "max_error_fraction_of_command_speed": 0.5,
+                "max_error_floor_mps": 0.05,
+                "min_error_improvement_fraction": 0.1,
+                "min_error_improvement_floor_mps": 0.02,
+                "all_seeds_must_pass": true
+              }
+            }
+          }
+        }
+      },
+      "progress": {
+        "final_training_metrics": {
+          "real_reward": 0.21842770278453827,
+          "velocity_error_xy_mps": 0.3531680107116699,
+          "yaw_error_rps": 0.1980770081281662,
+          "failures": 0,
+          "episodes": 0,
+          "wm_online_state_error": 0.02932806871831417,
+          "wm_online_contact_error": 1.2385010719299316,
+          "episode_length": 0.0,
+          "terrain_promotions": 0,
+          "terrain_demotions": 0,
+          "action_std": 0.427336722612381,
+          "policy_action_saturation": 0.0,
+          "policy_raw_action_abs": 0.030672289431095123,
+          "velocity_x_mps": 0.05800986289978027,
+          "velocity_y_mps": 0.029443219304084778,
+          "yaw_rate_rps": 0.04117553308606148,
+          "wm_online_velocity_xy_rmse_mps": 0.03825148494522571,
+          "exploration_noise": 0.43299999999999994,
+          "command_scale": 1.0,
+          "reward/velocity": 0.1603749841451645,
+          "reward/progress": 0.07251232862472534,
+          "reward/yaw": -0.1856481283903122,
+          "reward/upright": 0.07957305759191513,
+          "reward/height": 0.07921788841485977,
+          "reward/gait": 0.027347035706043243,
+          "reward/lift": 0.007532285060733557,
+          "reward/action_rate": -0.01895197667181492,
+          "reward/slip": -0.0010650692274793983,
+          "reward/energy": -0.0024647286627441645,
+          "reward/joint_limit": 0.0,
+          "reward/trunk_contact": 0.0,
+          "wm/state_loss": 0.0855451375246048,
+          "wm/contact_loss": 0.45428770780563354,
+          "wm/velocity_xy_rmse_mps": 0.11274193972349167,
+          "policy/actor_objective": -2.687575101852417,
+          "policy/actor_loss": 2.687575101852417,
+          "policy/imagined_velocity_error_xy_mps": 0.3763158917427063,
+          "policy/action_bound_loss": 0.0,
+          "policy/critic_loss": 0.7267130613327026,
+          "policy/policy_grad_norm": 13.485092163085938,
+          "policy/survival_end": 0.39489585161209106,
+          "policy/termination_mean": 0.028820639476180077,
+          "xmimic/ema_updates": 45,
+          "xmimic/wm_lr": 0.0003999999392043455,
+          "xmimic/actor_lr": 0.0003999999392043455,
+          "runtime/compiled_selected": 0.0,
+          "runtime/reference_selected": 0.0,
+          "runtime/tuning_total_s": 0.0,
+          "time/actor_rollout_s": 0.41856650001136586,
+          "time/actor_backward_s": 0.493884600000456,
+          "time/critic_targets_s": 0.009665399993536994,
+          "time/critic_fit_s": 0.08379469998180866,
+          "time/policy_ema_s": 0.0005567999905906618,
+          "iteration": 64,
+          "transitions": 3584,
+          "elapsed_s": 126.625,
+          "time/collect_s": 0.19257159999688156,
+          "time/wm_s": 1.1636399000126403,
+          "time/policy_s": 1.0136843000072986,
+          "throughput/transitions_per_s": 20.254055051559362,
+          "collection_steps": 3,
+          "updates/wm": 320,
+          "updates/actor": 45,
+          "updates/critic": 900,
+          "updates_this_iteration/wm": 5,
+          "updates_this_iteration/actor": 1,
+          "updates_this_iteration/critic": 20,
+          "batch_sizes/wm": 64,
+          "batch_sizes/policy": 32,
+          "memory/replay_gib": 0.002960205078125
+        },
+        "evaluation": {
+          "algorithm": "xmimic_velocity_bptt",
+          "policy_source": "all",
+          "checkpoint_sha256": "e17fd0a744fdbee7a56fbed7ecd7cecd1a2f2dfc43df1cf144aa07b71e058b26",
+          "xml_sha256": "f1ca7f33118514fd962014a0f88555ff494e8e76977ba0908979631a0298ebc3",
+          "iteration": 64,
+          "training_seconds": 126.625,
+          "hardware": {
+            "host": "kong",
+            "os": "Windows-11-10.0.26300-SP0",
+            "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+            "python": "3.12.14",
+            "torch": "2.14.1+cpu",
+            "cuda": null,
+            "gpu": [],
+            "gpu_identity_verified": false,
+            "cuda_device_count": 0
+          },
+          "protocol": {
+            "terrain": "flat",
+            "level": 1,
+            "seeds": [
+              0,
+              1,
+              42
+            ],
+            "seconds": 10.0,
+            "fixed_command": [
+              0.4,
+              0.0,
+              0.0
+            ],
+            "backend": "mujoco",
+            "action_noise": 0.0,
+            "depth_sensor": null
+          },
+          "results": {
+            "raw": {
+              "velocity_error_xy_mps": 0.3994198196729024,
+              "yaw_error_rps": 0.000515279215808126,
+              "command_aligned_progress_m": 0.005793854734444419,
+              "survival_seconds": 10.0,
+              "action_saturation": 0.0,
+              "raw_action_abs": 0.031485645391047,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39942766386270523,
+                  "yaw_error_rps": 0.0004736468729315675,
+                  "command_aligned_progress_m": 0.005712948322070588,
+                  "commanded_distance_m": 4.0000001114606585,
+                  "min_clearance_m": 0.28345996141433716,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.03154021872580051,
+                  "evaluation_seconds": 6.187999999994645
+                },
+                {
+                  "seed": 1,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3994103597998619,
+                  "yaw_error_rps": 0.0005570568224429735,
+                  "command_aligned_progress_m": 0.005889766407563002,
+                  "commanded_distance_m": 4.000000133514378,
+                  "min_clearance_m": 0.2833957374095917,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.031446052718907595,
+                  "evaluation_seconds": 4.234000000025844
+                },
+                {
+                  "seed": 42,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39942143535614016,
+                  "yaw_error_rps": 0.0005151339520498368,
+                  "command_aligned_progress_m": 0.005778849473699665,
+                  "commanded_distance_m": 4.000000123381585,
+                  "min_clearance_m": 0.28342193365097046,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.03147066472843289,
+                  "evaluation_seconds": 4.530999999988126
+                }
+              ],
+              "failure_rate": 0.0
+            },
+            "ema": {
+              "velocity_error_xy_mps": 0.3997374914884568,
+              "yaw_error_rps": 0.00017065612167311886,
+              "command_aligned_progress_m": 0.002617104898111696,
+              "survival_seconds": 10.0,
+              "action_saturation": 0.0,
+              "raw_action_abs": 0.0030008137005691723,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39974441450834275,
+                  "yaw_error_rps": 0.00019802616244851378,
+                  "command_aligned_progress_m": 0.002545679069498874,
+                  "commanded_distance_m": 4.000000143647165,
+                  "min_clearance_m": 0.2878013551235199,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0030061650495044885,
+                  "evaluation_seconds": 8.078999999997905
+                },
+                {
+                  "seed": 1,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39972860193252563,
+                  "yaw_error_rps": 0.00017606553872928998,
+                  "command_aligned_progress_m": 0.002707250133880734,
+                  "commanded_distance_m": 4.000000147223465,
+                  "min_clearance_m": 0.2877444326877594,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0029968721726909278,
+                  "evaluation_seconds": 4.1710000000020955
+                },
+                {
+                  "seed": 42,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3997394580245018,
+                  "yaw_error_rps": 0.00013787666384155274,
+                  "command_aligned_progress_m": 0.0025983854909554793,
+                  "commanded_distance_m": 4.000000221729268,
+                  "min_clearance_m": 0.28777015209198,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0029994038795121015,
+                  "evaluation_seconds": 6.4539999999979045
+                }
+              ],
+              "failure_rate": 0.0
+            },
+            "zero_action": {
+              "velocity_error_xy_mps": 0.39974301598469414,
+              "yaw_error_rps": 0.00012422165855969068,
+              "command_aligned_progress_m": 0.0025619175568891706,
+              "survival_seconds": 10.0,
+              "action_saturation": 0.0,
+              "raw_action_abs": 0.0,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.3997497798204422,
+                  "yaw_error_rps": 0.00018396562983616604,
+                  "command_aligned_progress_m": 0.002492366699698323,
+                  "commanded_distance_m": 4.00000012457366,
+                  "min_clearance_m": 0.28816673159599304,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0,
+                  "evaluation_seconds": 5.7960000000020955
+                },
+                {
+                  "seed": 1,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39973424005508423,
+                  "yaw_error_rps": 0.00011457418998747926,
+                  "command_aligned_progress_m": 0.0026507024834785398,
+                  "commanded_distance_m": 4.000000166296919,
+                  "min_clearance_m": 0.28811076283454895,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0,
+                  "evaluation_seconds": 3.7039999999979045
+                },
+                {
+                  "seed": 42,
+                  "steps": 500,
+                  "survival_seconds": 10.0,
+                  "failed": false,
+                  "terrain_passed": false,
+                  "velocity_error_xy_mps": 0.39974502807855605,
+                  "yaw_error_rps": 7.412515585542679e-05,
+                  "command_aligned_progress_m": 0.002542683487490649,
+                  "commanded_distance_m": 4.000000060796695,
+                  "min_clearance_m": 0.2881363332271576,
+                  "planned_distance_m": 4.0,
+                  "action_saturation": 0.0,
+                  "raw_action_abs": 0.0,
+                  "evaluation_seconds": 4.60899999999674
+                }
+              ],
+              "failure_rate": 0.0
+            }
+          },
+          "assessment": {
+            "raw": {
+              "status": "needs_training",
+              "motion_verified": false,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.001428237080517647
+                },
+                {
+                  "seed": 1,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0014724416018907505
+                },
+                {
+                  "seed": 42,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0014447123684249163
+                }
+              ],
+              "criteria": {
+                "min_progress_fraction": 0.7,
+                "max_error_fraction_of_command_speed": 0.5,
+                "max_error_floor_mps": 0.05,
+                "min_error_improvement_fraction": 0.1,
+                "min_error_improvement_floor_mps": 0.02,
+                "all_seeds_must_pass": true
+              }
+            },
+            "ema": {
+              "status": "needs_training",
+              "motion_verified": false,
+              "episodes": [
+                {
+                  "seed": 0,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0006364197673747185
+                },
+                {
+                  "seed": 1,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0006768125334701836
+                },
+                {
+                  "seed": 42,
+                  "passed": false,
+                  "gates": {
+                    "finite": true,
+                    "survived": true,
+                    "commanded_progress": false,
+                    "velocity_tracking": false,
+                    "beats_zero_action": false
+                  },
+                  "progress_fraction": 0.0006495963727388698
+                }
+              ],
+              "criteria": {
+                "min_progress_fraction": 0.7,
+                "max_error_fraction_of_command_speed": 0.5,
+                "max_error_floor_mps": 0.05,
+                "min_error_improvement_fraction": 0.1,
+                "min_error_improvement_floor_mps": 0.02,
+                "all_seeds_must_pass": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "conclusion": "Both formulas fail the locomotion gate at this early budget. No locomotion-quality improvement or convergence established. These timings are not a throughput comparison."
+  },
+  "limitations": [
+    "No CUDA/RTX4060 training or convergence measured locally",
+    "User GPU checkpoint binary not available",
+    "Removing static reward income does not guarantee optimizer convergence or correct world-model Jacobians",
+    "Old checkpoint policy inference remains usable; changed reward rejects full resume and resets value/optimizer state for a new run"
+  ]
+}

@@ -59,10 +59,31 @@ def failure(state, context):
     return (height < .14) | (height > .65) | (gravity[:, 2] > -.5) | (state[:, 41] > .5)
 
 
-def velocity_error(state, command):
+def command_velocity(state):
+    """Heading-frame planar velocity and world yaw rate in physical units."""
     velocity = quat_apply_inverse(heading_quat(state[:, 3:7]), state[:, 19:22])
     yaw_rate = quat_apply(state[:, 3:7], state[:, 22:25])[:, 2]
+    return velocity[:, :2], yaw_rate
+
+
+def velocity_error(state, command):
+    velocity, yaw_rate = command_velocity(state)
     return (velocity[:, :2] - command[:, :2]).norm(dim=-1), (yaw_rate-command[:, 2]).abs()
+
+
+def command_progress(velocity, yaw_rate, command):
+    """Signed achievement of active planar/turn commands, averaged when both exist.
+
+    Includes pure turns and reverse/sideways commands. The linear derivative at
+    rest is retained; there is no hard minimum-speed threshold on the robot.
+    """
+    speed = command[:, :2].norm(dim=-1)
+    planar = (speed > 1e-3).float()
+    turning = (command[:, 2].abs() > 1e-3).float()
+    direction = command[:, :2]/speed.clamp_min(1e-6)[:, None]
+    linear = (velocity*direction).sum(-1)/speed.clamp_min(.1)
+    angular = yaw_rate*command[:, 2].sign()/command[:, 2].abs().clamp_min(.1)
+    return ((linear*planar+angular*turning)/(planar+turning).clamp_min(1.)).clamp(-1., 1.)
 
 
 def state_features(state, context, spec=None):
@@ -92,7 +113,8 @@ class FootKinematics:
 
 def reward(state, action, previous, command, phase, context, feet, objective=None, return_terms=False):
     cfg = objective_from(objective)
-    xy, yaw = velocity_error(state, command)
+    local_velocity, yaw_rate = command_velocity(state)
+    xy, yaw = (local_velocity-command[:, :2]).norm(dim=-1), (yaw_rate-command[:, 2]).abs()
     height = ground_clearance(state, context)
     gravity = quat_apply_inverse(state[:, 3:7], state.new_tensor([0., 0., -1.]).expand(len(state), 3))
     foot_pos, foot_vel = feet(state)
@@ -105,7 +127,6 @@ def reward(state, action, previous, command, phase, context, feet, objective=Non
     # Signed progress along the commanded direction. Unlike exp(-err^2) this is linear,
     # so it keeps a constant gradient while the robot is standing still — that is the
     # signal that pulls the policy out of the standing local optimum.
-    local_velocity = quat_apply_inverse(heading_quat(state[:, 3:7]), state[:, 19:22])[:, :2]
     speed = command[:, :2].norm(dim=-1)
     direction = command[:, :2]/speed.clamp_min(1e-6)[:, None]
     progress = ((local_velocity*direction).sum(-1)/speed.clamp_min(.1)).clamp(-1., 1.)*moving
@@ -125,6 +146,21 @@ def reward(state, action, previous, command, phase, context, feet, objective=Non
         height=torch.exp(-(height-cfg.target_height).square()/.01), gait=gait, lift=lift,
         action_rate=(action-previous).square().mean(-1), slip=slip, energy=energy,
         joint_limit=joint_limit, trunk_contact=state[:, 41])
+    if cfg.motion_reward_mode == 'progress':
+        progress = command_progress(local_velocity, yaw_rate, command)*moving
+        raw['progress'] = progress
+        # Subtract the tracking score of a stationary robot for movement
+        # commands. Zero yaw and modest forward targets no longer pay for rest.
+        raw['velocity'] = raw['velocity']-moving*torch.exp(-speed.square()/cfg.velocity_tolerance**2)
+        raw['yaw'] = raw['yaw']-moving*torch.exp(-command[:, 2].square()/cfg.yaw_tolerance**2)
+        # Keep explicit standing commands unchanged. During locomotion, posture
+        # and gait income requires progress; retain gradients through the gate
+        # so even a tiny correctly directed velocity is better than standing.
+        gate = (1.-moving)+progress.clamp(0., 1.)*moving
+        # Gate positive income only: an inverted body must retain its penalty.
+        raw['upright'] = raw['upright'].clamp_min(0.)*gate+raw['upright'].clamp_max(0.)
+        for key in ('height', 'gait', 'lift'):
+            raw[key] = raw[key]*gate
     terms = {key: getattr(cfg, 'reward_'+key)*value for key, value in raw.items()}
     total = sum(terms.values())
     return (total, terms) if return_terms else total

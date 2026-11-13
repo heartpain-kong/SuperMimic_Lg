@@ -21,6 +21,11 @@ class VelocityObjective:
     swing_height: float = .06
     velocity_tolerance: float = .5
     yaw_tolerance: float = .5
+    motion_reward_mode: str = 'progress'
+
+    def __post_init__(self):
+        if self.motion_reward_mode not in ('progress', 'legacy'):
+            raise ValueError('motion_reward_mode must be progress or legacy')
 
     def as_dict(self):
         return asdict(self)
@@ -41,6 +46,9 @@ def objective_from(source=None):
     values = {}
     for f in fields(VelocityObjective):
         raw = source.get(f.name, f.default) if isinstance(source, dict) else getattr(source, f.name, f.default)
+        if f.name == 'motion_reward_mode':
+            values[f.name] = str(raw)
+            continue
         value = float(raw)
         low, high = OBJECTIVE_BOUNDS[f.name]
         if not math.isfinite(value) or not low <= value <= high:
@@ -80,4 +88,8 @@ def add_objective_arguments(parser):
                         help='random symmetric ranges or exact fixed [vx,vy,yaw] targets')
     parser.add_argument('--standing-fraction', type=float, default=.1)
     for f in fields(VelocityObjective):
+        if f.name == 'motion_reward_mode':
+            parser.add_argument('--motion-reward-mode', choices=('progress', 'legacy'), default=f.default,
+                                help='progress: movement-relative tracking and motion-gated auxiliary rewards; legacy: archived formula')
+            continue
         parser.add_argument('--'+f.name.replace('_', '-'), type=float, default=f.default)

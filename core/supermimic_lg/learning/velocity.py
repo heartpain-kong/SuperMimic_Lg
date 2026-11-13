@@ -11,6 +11,7 @@ from .returns import discounted_objective, lambda_returns
 from .rollout import imagine
 from ..tasks.velocity.schema import FRAME_DIM
 from ..tasks.velocity.task import VelocityCondition
+from ..tasks.velocity.mdp import velocity_error
 from ..tasks.velocity.imagination import imagine_batched, critic_features, CompiledRecurrentStep
 
 
@@ -93,19 +94,22 @@ class VelocityLearner:
         cfg = self.cfg
         state, context = rows["state"][0], self.context(rows)
         self.wm.update_norms(state, rows["action"][0], context, rows["next"][0])
-        physical, contacts = [], []
+        physical, contacts, velocity_errors = [], [], []
         for t in range(cfg.wm_horizon):
             state = self.wm.step(state, rows["action"][t], context)
             state = torch.where(rows["valid"][t, :, None].bool(), state, rows["next"][t].detach())
             physical.append(self.wm.prediction_error(state, rows["next"][t]) if cfg.wm_loss_scale == "increment"
                             else self.wm.spec.normalized_sq_error(state[:, :37], rows["next"][t, :, :37]))
             contacts.append(contact_bce(state[:, 37:], rows["next"][t, :, 37:]))
+            velocity_errors.append((state[:, 19:21].detach()-rows['next'][t, :, 19:21]).square().sum(-1))
         valid = rows["valid"]
         state_loss = (torch.stack(physical)*valid).sum()/valid.sum().clamp_min(1.)
         contact_loss = (torch.stack(contacts)*valid).sum()/valid.sum().clamp_min(1.)
         optimizer_step(state_loss+contact_loss, self.wm, self.optimizers[0], cfg.grad_clip)
         self.counts["wm"] += 1
-        return {"wm/state_loss": state_loss.detach(), "wm/contact_loss": contact_loss.detach()}
+        velocity_rmse = ((torch.stack(velocity_errors)*valid).sum()/valid.sum().clamp_min(1.)).sqrt()
+        return {"wm/state_loss": state_loss.detach(), "wm/contact_loss": contact_loss.detach(),
+                'wm/velocity_xy_rmse_mps': velocity_rmse}
 
     def update_policy(self, rows):
         if self.rollout_mode == 'auto':
@@ -174,7 +178,11 @@ class VelocityLearner:
                     loss = F.mse_loss(self.critic.forward_normalized(inputs_x[index]), targets_y[index])
                     optimizer_step(loss, self.critic, self.optimizers[2], cfg.grad_clip)
                     self.counts["critic"] += 1
+        with torch.no_grad():
+            commands = torch.stack([c.command for c in rollout.conditions[:-1]]).flatten(0, 1)
+            imagined_xy, _ = velocity_error(rollout.states[1:].detach().flatten(0, 1), commands)
         return {"policy/actor_objective": objective.detach().mean(), "policy/actor_loss": actor_loss.detach(),
+                'policy/imagined_velocity_error_xy_mps': imagined_xy.mean(),
                 "policy/action_bound_loss": bounds.detach(), "policy/critic_loss": loss.detach(),
                 "policy/policy_grad_norm": grad, "policy/survival_end": rollout.survival[-1].detach().mean(),
                 "policy/termination_mean": rollout.termination.detach().mean()}

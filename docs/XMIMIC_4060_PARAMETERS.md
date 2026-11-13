@@ -1,6 +1,6 @@
 # XMimic-Lg / RTX 4060 8GB：完整起步配置
 
-适用于已发布的 0.5.0 及之后版本。目标是从零学习平地固定前进，20 分钟作为试跑预算，尚未在该 GPU 上验证收敛。完整启动脚本为 [examples/xmimic_4060_flat.sh](../examples/xmimic_4060_flat.sh)。脚本与下表对应。
+适用于 0.7.0 及之后版本。目标是从零学习平地固定前进，20 分钟作为训练试跑预算，随后单独进行物理评估；尚未在该 GPU 上验证收敛。完整启动脚本为 [examples/xmimic_4060_flat.sh](../examples/xmimic_4060_flat.sh)。脚本与下表对应。
 
 ## 工作台基础项
 
@@ -32,6 +32,7 @@
 | 项目 | 值 |
 |---|---|
 | 速度目标方式 | fixed（固定指令） |
+| 运动奖励方式 | progress（扣除静止跟踪基线，正向辅助奖励随实际运动进度生效） |
 | 前后 / 横向 / 转向 | 0.4 m/s / 0 m/s / 0 rad/s |
 | 站立指令比例 | 0 |
 | 指令课程轮数 / 初始比例 | 0（关闭） / 0.25（关闭时不生效） |
@@ -100,4 +101,6 @@ cd /home/heartpain/SuperMimic
 bash examples/xmimic_4060_flat.sh
 ```
 
-脚本为每次运行生成新目录，也可把自定义目录作为第一个参数。检查新日志：预热后每轮 `updates_this_iteration/actor=1`、`updates_this_iteration/critic=20`、`updates_this_iteration/wm=5`。评估看无探索噪声的 EMA 速度误差和实际前进距离。
+脚本为每次运行生成新目录，也可把自定义目录作为第一个参数。检查新日志：预热后每轮 `updates_this_iteration/actor=1`、`updates_this_iteration/critic=20`、`updates_this_iteration/wm=5`。同时查看 `velocity_x_mps` 和 `wm_online_velocity_xy_rmse_mps`。
+
+训练完成后脚本用相同 mjlab 后端、0.4 m/s 固定指令、10 秒、seed 0/1/42，比较 raw、EMA 与零动作策略，保存 `evaluation.json`。评估用时不包含在 1200 秒训练预算内。`assessment.ema.motion_verified=true` 只表示这组短测达标；`needs_training` 表示尚未达到该评估条件。旧检查点仍可观看、评估或只迁移 actor，不能将旧 critic/优化器作为新奖励的完整续训状态；默认新开训练。

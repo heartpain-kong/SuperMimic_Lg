@@ -19,7 +19,7 @@ from supermimic_lg.depth import DepthEncoder, DepthLagBuffer, corrupt_depth, dep
 from supermimic_lg.velocity_physics import VelocitySimulator
 from supermimic_lg.tasks.velocity.networks import VelocityWorldModel, VelocityPolicy, VelocityCritic
 from supermimic_lg.tasks.velocity.replay import VelocityReplay
-from supermimic_lg.tasks.velocity.mdp import FootKinematics, frame, phase_at, failure, velocity_error, reward
+from supermimic_lg.tasks.velocity.mdp import FootKinematics, frame, phase_at, failure, velocity_error, reward, command_velocity
 from supermimic_lg.tasks.velocity.schema import frame_dim, context_dim, CONTEXT_DIM
 
 
@@ -125,6 +125,10 @@ class VelocityTrainer:
                                                 if key.startswith("encoder.")})
         if args.resume:
             ck = torch.load(args.resume, map_location=args.device, weights_only=True)
+            old_mode = ck.get('metadata', {}).get('objective', {}).get('motion_reward_mode', 'legacy')
+            if old_mode != self.objective.motion_reward_mode:
+                raise ValueError('checkpoint motion reward differs; start a new run for the corrected objective '
+                                 '(--init-policy may transfer only the actor); keep the original checkpoint for evaluation')
             if ck.get("algorithm") != self.checkpoint_algorithm or resume_contract(ck.get("metadata", {})) != resume_contract(self.metadata):
                 raise ValueError("velocity checkpoint task/terrain/XML/policy contract differs; tracking checkpoints are incompatible")
             for m, key in ((self.wm, "wm"), (self.policy, "policy"), (self.critic, "critic")):
@@ -225,7 +229,7 @@ class VelocityTrainer:
     @torch.no_grad()
     def collect(self, collect_steps=None):
         collect_steps = self.args.collect_steps if collect_steps is None else collect_steps
-        totals = torch.zeros(9, device=self.args.device)
+        totals = torch.zeros(13, device=self.args.device)
         component_totals = {}
         completed = promotions = demotions = 0
         lengths = []
@@ -257,7 +261,9 @@ class VelocityTrainer:
                                     next_context, self.feet, self.objective, return_terms=True)
             for key, value in reward_terms.items():
                 component_totals[key] = component_totals.get(key, 0.) + value.sum()
-            xy, yaw = velocity_error(next_state, self.command)
+            local_velocity, yaw_rate = command_velocity(next_state)
+            xy = (local_velocity-self.command[:, :2]).norm(dim=-1)
+            yaw = (yaw_rate-self.command[:, 2]).abs()
             world_command = quat_apply(heading_quat(state[:, 3:7]),
                 torch.cat((self.command[:, :2], torch.zeros_like(self.command[:, :1])), -1))[:, :2]
             speed = world_command.norm(dim=-1)
@@ -295,7 +301,8 @@ class VelocityTrainer:
             self.history = torch.cat((self.history[:, 1:], obs[:, None]), 1)
             totals += torch.stack((r.sum(), xy.sum(), yaw.sum(), failed.sum(), prediction_error.sum(), contact_error.sum(),
                 executed.std()*self.args.num_envs, (action.abs() >= 1.).float().sum()/12.,
-                action.abs().sum()/12.))
+                action.abs().sum()/12., local_velocity[:, 0].sum(), local_velocity[:, 1].sum(),
+                yaw_rate.sum(), (predicted[:, 19:21]-next_state[:, 19:21]).square().sum()))
             self.current_state, self.current_context = next_state, next_context[:, :CONTEXT_DIM]
             self.reset(ids)
         denominator = collect_steps*self.args.num_envs
@@ -305,6 +312,8 @@ class VelocityTrainer:
             wm_online_state_error=values[4], wm_online_contact_error=values[5],
             episode_length=sum(lengths)/max(1,len(lengths)), terrain_promotions=promotions, terrain_demotions=demotions,
             action_std=values[6], policy_action_saturation=values[7], policy_raw_action_abs=values[8],
+            velocity_x_mps=values[9], velocity_y_mps=values[10], yaw_rate_rps=values[11],
+            wm_online_velocity_xy_rmse_mps=math.sqrt(values[12]),
             exploration_noise=float(noise), command_scale=self.command_scale(),
             **{'reward/'+k:float(v/denominator) for k,v in component_totals.items()})
 

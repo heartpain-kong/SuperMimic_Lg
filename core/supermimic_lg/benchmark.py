@@ -100,6 +100,11 @@ class HIMActor:
 
 def evaluate_actor(actor, sim, seeds, seconds, fixed_command=None):
     episodes = []
+    total_steps = round(seconds*50)
+    commands = [fixed_command if fixed_command is not None else
+        ([.6, 0., 0.] if step < 200 else ([.4,.15,0.] if step < 350 else [.4,-.15,.2]))
+        for step in range(total_steps)]
+    planned_distance = .02*sum((c[0]**2+c[1]**2)**.5 for c in commands)
     for seed in seeds:
         sim.rng = np.random.default_rng(seed)
         sim.reset(torch.tensor([0], device=sim.device))
@@ -111,10 +116,9 @@ def evaluate_actor(actor, sim, seeds, seconds, fixed_command=None):
         clearance_min = float("inf")
         command = torch.tensor([[.6, 0., 0.]], device=sim.device)
         started = time.monotonic()
-        for step in range(round(seconds*50)):
+        for step in range(total_steps):
             # The exact same deterministic command schedule is used for both.
-            command[:] = command.new_tensor(fixed_command if fixed_command is not None else
-                ([.6, 0., 0.] if step < 200 else ([.4,.15,0.] if step < 350 else [.4,-.15,.2])))
+            command[:] = command.new_tensor(commands[step])
             state, context = sim.observe()
             phase = phase_at(torch.tensor([step], device=sim.device))
             phase *= (command.norm(dim=-1) >= 1e-3)[:, None]
@@ -140,11 +144,12 @@ def evaluate_actor(actor, sim, seeds, seconds, fixed_command=None):
             previous = action
             if failed: break
         steps = step+1
-        success = (not failed and steps == round(seconds*50) and progress >= 2.
+        success = (not failed and steps == total_steps and progress >= 2.
                    and progress >= .7*target and error_xy/steps < .8)
         episodes.append(dict(seed=seed, steps=steps, survival_seconds=steps*.02, failed=failed,
             terrain_passed=success, velocity_error_xy_mps=error_xy/steps, yaw_error_rps=error_yaw/steps,
             command_aligned_progress_m=progress, commanded_distance_m=target, min_clearance_m=clearance_min,
+            planned_distance_m=planned_distance,
             action_saturation=saturated/steps, raw_action_abs=raw_abs/steps,
             evaluation_seconds=time.monotonic()-started))
     return episodes

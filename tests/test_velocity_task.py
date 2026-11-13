@@ -97,6 +97,7 @@ def test_configurable_reward_contributions_and_bptt_gradient():
     from supermimic_lg.config import lgdog1_spec
     state,context=state_and_patch()
     state[:,7:19]=torch.tensor(lgdog1_spec().default_joint_pos)
+    state[:,19]=.2  # Exercise lift-height effects while the motion gate is active.
     state.requires_grad_()
     action=torch.zeros(2,12)
     command=torch.tensor([[.4,0.,0.]]*2)

@@ -9,12 +9,14 @@ import torch
 from supermimic_lg.benchmark import CheckpointActor, digest, evaluate_actor, hardware
 from supermimic_lg.simulator import resolve_robot_xml
 from supermimic_lg.velocity_physics import TERRAINS, VelocitySimulator
+from supermimic_lg.evaluation import assess_locomotion
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--checkpoint", type=Path, required=True)
-    p.add_argument("--policy", choices=("auto", "raw", "ema"), default="auto")
+    p.add_argument("--policy", choices=("auto", "raw", "ema", "all"), default="auto",
+                   help='all compares raw, available XMimic EMA, and zero action in the same physics')
     p.add_argument("--mjlab-root", type=Path, default=Path("../unitree_rl_mjlab_lgdog"))
     p.add_argument("--robot-xml", type=Path)
     p.add_argument("--terrain", choices=[t for t in TERRAINS if t != "rough"], default="flat")
@@ -32,7 +34,10 @@ def main():
         p.error("use >=5 finite seconds and finite commands")
     torch.set_num_threads(1)
     xml = resolve_robot_xml(args.mjlab_root, args.robot_xml)
-    actor = CheckpointActor(args.checkpoint, args.device, xml, args.policy)
+    actor = CheckpointActor(args.checkpoint, args.device, xml, 'raw' if args.policy == 'all' else args.policy)
+    actors = {'raw' if args.policy == 'all' else 'policy': actor}
+    if args.policy == 'all' and actor.algorithm == 'xmimic_velocity_bptt':
+        actors['ema'] = CheckpointActor(args.checkpoint, args.device, xml, 'ema')
 
     class ZeroActor:
         history = actor.history
@@ -45,14 +50,14 @@ def main():
 
     sim = VelocitySimulator(xml, args.mjlab_root, 1, args.backend, args.device,
                             args.terrain, seed=0, level=args.level, depth=actor.depth)
-    report = dict(algorithm=actor.algorithm, policy_source=actor.policy_source,
+    report = dict(algorithm=actor.algorithm, policy_source=args.policy if args.policy == 'all' else actor.policy_source,
         checkpoint_sha256=digest(args.checkpoint), xml_sha256=digest(xml),
         iteration=actor.iteration, training_seconds=actor.training_seconds, hardware=hardware(),
         protocol=dict(terrain=args.terrain, level=args.level, seeds=args.seeds, seconds=args.seconds,
             fixed_command=args.command, backend=args.backend, action_noise=0.,
             depth_sensor="ideal; no noise/dropout/latency" if actor.depth else None), results={})
     try:
-        for name, evaluated in (("policy", actor), ("zero_action", ZeroActor())):
+        for name, evaluated in (*actors.items(), ("zero_action", ZeroActor())):
             episodes = evaluate_actor(evaluated, sim, args.seeds, args.seconds, args.command)
             metrics = ("velocity_error_xy_mps", "yaw_error_rps", "command_aligned_progress_m",
                        "survival_seconds", "action_saturation", "raw_action_abs")
@@ -61,10 +66,13 @@ def main():
                 failure_rate=sum(row["failed"] for row in episodes)/len(episodes))
     finally:
         sim.close()
+    report['assessment'] = {name: assess_locomotion(report['results'][name]['episodes'],
+        report['results']['zero_action']['episodes'], args.seconds) for name in actors}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps({k: {m: v for m, v in row.items() if m != "episodes"}
                       for k, row in report["results"].items()}, indent=2))
+    print(json.dumps({'assessment': report['assessment']}, indent=2))
 
 
 if __name__ == "__main__":

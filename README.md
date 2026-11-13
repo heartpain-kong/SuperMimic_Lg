@@ -2,7 +2,9 @@
 
 这个目录把 `E:\足式机器人\SuperMimic\代码\SuperMimic-Reproduced_CuboiLeo` 的核心思路整理成可复用的四足实现：学习一个带上下文条件的可微动力学模型，用软终止概率保留 BPTT 梯度，再在模型中进行短视野想象更新。状态、动作、目标和跟踪奖励都按机器人维度生成，默认提供 Unitree Go2 与现有 `E:\mjlab\unitree_rl_mjlab_lgdog` 的 LgDog1 映射。
 
-当前 **0.6.0**（SuperMimic modular v5 / XMimic-Lg v6） 已把任务、网络、回放、学习核心与训练生命周期拆开，支持独立模型/策略批量、UTD 调度和可审计的更新计数。结构、参考源码、兼容入口与检查点迁移见 [重构说明](docs/REFACTOR_2026-11-12.md)。
+当前 **0.7.0**（SuperMimic modular v5 / XMimic-Lg v6） 已把任务、网络、回放、学习核心与训练生命周期拆开，支持独立模型/策略批量、UTD 调度和可审计的更新计数。结构、参考源码、兼容入口与检查点迁移见 [重构说明](docs/REFACTOR_2026-11-12.md)。
+
+0.7.0 修正运动指令下静止也能获得较高奖励的问题：默认 `--motion-reward-mode progress` 扣除静止跟踪基线，正向姿态/步态辅助分随实际运动进度生效，显式站立指令保留稳定奖励；`legacy` 保留旧公式用于对照。新增真实速度与世界模型速度 RMSE，`evaluate_velocity --policy all` 比较 raw/EMA/零动作并单独报告运动是否达标。4060 脚本在训练结束后自动评估。代码与物理短测不等于已验证 RTX4060 收敛；见 [修复和旧检查点处理](docs/LOCOMOTION_REWARD_FIX_2026-11-14.md)。
 
 0.6.0 提供 [RTX 4060 全部起步参数](docs/XMIMIC_4060_PARAMETERS.md) 与 [直接启动脚本](examples/xmimic_4060_flat.sh)，并增加实验性 `auto` 执行方式：在当前 GPU 上试跑后选择批量或编译路径，恢复试跑前的训练状态，编译失败时回退。默认保持 `batched`；本轮 CPU 同工作量对照未见稳定的新增提速，CUDA 与收敛仍待实测。[模式、冷启动开销与验证边界](docs/RUNTIME_TUNING_2026-11-13.md)。
 
